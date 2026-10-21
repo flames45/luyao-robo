@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+**/__pycache__
+**/*.pyc
+.venv*
+.git
+build
+dist
+backups
+web_data
+memory
+tests
+*.zip
+*.ppt*
+*.doc*
+*.log

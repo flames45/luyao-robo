@@ -1,0 +1,34 @@
+# Secrets
+.env
+.env.*
+!.env.example
+web_data/
+backups/
+submission/
+web_preview/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+build/
+dist/
+*.spec
+
+# Memory data (user-specific)
+memory_source/
+chat_history.md

@@ -1,0 +1,2875 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>路遥 · 铁路司机伙伴</title>
+
+    <link rel="stylesheet" href="assets/vendor/tailwind.min.css">
+    <script src="assets/vendor/gsap.min.js"></script>
+    <link rel="stylesheet" href="assets/vendor/fontawesome/all.min.css">
+    <link rel="icon" href="assets/pet-fallback.png" type="image/png">
+
+    <!-- Live2D (铁小川 Cubism 3 via PixiJS) -->
+    <script>window.define=undefined;</script>
+    <script src="live2d/live2dcubismcore.min.js"></script>
+    <script src="live2d/pixi.min.js"></script>
+    <script src="live2d/cubism4.min.js"></script>
+
+    <style>
+
+        :root {
+            --bg-color: #050505;
+            --text-main: #f0f0f0;
+            --accent: #d4af37;
+            --accent-dim: rgba(212, 175, 55, 0.2);
+            --font-serif: 'Cinzel', Georgia, serif;
+            --font-sans: 'Space Grotesk', 'Segoe UI', sans-serif;
+            --font-zh: 'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            overflow: hidden;
+            cursor: none;
+            font-family: var(--font-sans);
+            -webkit-font-smoothing: antialiased;
+            text-rendering: geometricPrecision;
+        }
+
+        body.has-custom-bg::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: -2;
+            background-image: var(--custom-bg-image);
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            transform: translate3d(0,0,0);
+            will-change: transform;
+        }
+
+        body.has-custom-bg::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background: rgba(0, 0, 0, 0.45);
+            pointer-events: none;
+        }
+
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            background-image:
+                linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 10vw 10vh;
+            contain: strict;
+        }
+
+        #cursor-dot, #cursor-ring {
+            position: fixed;
+            top: 0;
+            left: 0;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 99999;
+            transform: translate3d(-100px, -100px, 0);
+            will-change: transform;
+        }
+
+        #cursor-dot {
+            width: 6px;
+            height: 6px;
+            background: #fff;
+            transition: opacity 0.3s;
+        }
+
+        #cursor-ring {
+            width: 40px;
+            height: 40px;
+            border: 1px solid rgba(255,255,255,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            color: #000;
+            transition: width 0.28s cubic-bezier(0.16, 1, 0.3, 1), height 0.28s, background 0.28s, border-color 0.28s;
+        }
+
+        body.hover-img #cursor-ring {
+            width: 80px;
+            height: 80px;
+            background: #fff;
+            border-color: transparent;
+            mix-blend-mode: difference;
+        }
+
+        body.hover-img #cursor-ring::after {
+            content: 'VIEW';
+            mix-blend-mode: normal;
+        }
+
+        body.hover-img #cursor-dot {
+            opacity: 0;
+        }
+
+        body.hover-btn #cursor-ring {
+            width: 60px;
+            height: 60px;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(4px);
+            border-color: transparent;
+        }
+
+        #drop-zone {
+            position: fixed;
+            inset: 0;
+            z-index: 100000;
+            background: rgba(5, 5, 5, 0.85);
+            backdrop-filter: blur(12px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        #drop-zone.active {
+            opacity: 1;
+        }
+        .drop-box {
+            border: 2px dashed var(--accent);
+            padding: 60px 100px;
+            text-align: center;
+            color: var(--accent);
+            transform: scale(0.9);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s, box-shadow 0.3s;
+            box-shadow: 0 0 0 rgba(212, 175, 55, 0);
+        }
+        #drop-zone.active .drop-box {
+            transform: scale(1);
+        }
+        #drop-zone.drag-over .drop-box {
+            background: rgba(212, 175, 55, 0.05);
+            box-shadow: 0 0 40px rgba(212, 175, 55, 0.15);
+            transform: scale(1.02);
+        }
+        .drop-icon {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            animation: bounce 2s infinite ease-in-out;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        #preloader {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            z-index: 90000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            will-change: transform;
+        }
+
+        .data-stream {
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 200%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                90deg,
+                transparent,
+                transparent 80px,
+                rgba(255,255,255,0.03) 80px,
+                rgba(255,255,255,0.03) 82px
+            );
+            animation: dataFlow 20s linear infinite;
+            will-change: transform;
+        }
+
+        @keyframes dataFlow {
+            0% { transform: translate3d(0,0,0); }
+            100% { transform: translate3d(100%,0,0); }
+        }
+
+        .pl-percent {
+            font-family: var(--font-serif);
+            font-size: 12vw;
+            font-weight: 400;
+            line-height: 1;
+            color: transparent;
+            -webkit-text-stroke: 1px #fff;
+            position: relative;
+            z-index: 1;
+        }
+
+        .pl-line-container {
+            width: 300px;
+            height: 1px;
+            background: rgba(255,255,255,0.2);
+            margin-top: 20px;
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+        }
+
+        .pl-line {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 0%;
+            background: #fff;
+        }
+
+        .pl-log {
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 11px;
+            color: #666;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            position: relative;
+            z-index: 1;
+        }
+
+        .page {
+            position: absolute;
+            inset: 0;
+            visibility: hidden;
+            z-index: 10;
+            opacity: 0;
+            contain: layout paint style;
+        }
+
+        .page.active {
+            visibility: visible;
+        }
+
+        .outline-bg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate3d(-50%, -50%, 0);
+            font-family: var(--font-serif);
+            font-size: 25vw;
+            font-weight: 800;
+            color: transparent;
+            -webkit-text-stroke: 1px rgba(255,255,255,0.05);
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 0;
+            user-select: none;
+            will-change: transform, opacity;
+        }
+
+        .char-wrap, .word-wrap {
+            display: inline-block;
+            overflow: hidden;
+            vertical-align: bottom;
+        }
+
+        .char, .word {
+            display: inline-block;
+            transform: translate3d(0, 110%, 0);
+            opacity: 0;
+            will-change: transform, opacity;
+        }
+
+        #gallery-container {
+            position: absolute;
+            inset: 0;
+            z-index: 5;
+            pointer-events: none;
+            contain: layout paint style;
+        }
+
+        .gallery-item {
+            position: absolute;
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: 0 18px 38px -16px rgba(0,0,0,0.82);
+            opacity: 0.4;
+            filter: grayscale(75%);
+            will-change: transform, opacity;
+            contain: layout paint style;
+            transform: translate3d(0,0,0);
+        }
+
+        .gallery-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: translate3d(0,0,0);
+            backface-visibility: hidden;
+        }
+
+        #hero-frame {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 340px;
+            height: 480px;
+            transform: translate3d(-50%, -50%, 0);
+            z-index: 20;
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: 0 0 36px rgba(0,0,0,0.86);
+            pointer-events: auto;
+            will-change: transform, width, height, border-radius, opacity;
+            background: #050505;
+            contain: layout paint style;
+        }
+
+        .gallery-item { background: linear-gradient(145deg, #172b36, #0a0d12 65%, #4b3b17); }
+        body.public-mode [data-private], body.public-mode #console-toggle,
+        body.public-mode #console-drawer { display: none !important; }
+        button:disabled { opacity: 0.5; cursor: wait; }
+
+        #file-preview-notice { display: none; }
+        body.file-preview #file-preview-notice {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            position: fixed;
+            left: 12px;
+            right: 12px;
+            bottom: 12px;
+            z-index: 100;
+            padding: 12px 16px;
+            border: 1px solid var(--accent-dim);
+            background: rgba(5, 5, 5, 0.96);
+            font: 12px/1.7 var(--font-zh);
+        }
+        #file-preview-notice a { color: var(--accent); text-decoration: underline; }
+
+        #hero-frame img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center 20%;
+            image-rendering: auto;
+            transform: translate3d(0,0,0);
+            backface-visibility: hidden;
+        }
+
+        #hero-frame.fit-contain img {
+            object-fit: contain;
+            object-position: center center;
+        }
+
+        /* Live2D */
+        #live2d-container { position: absolute; inset: 0; z-index: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        #live2d-container canvas { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+
+        #hero-frame::after {
+            content: '';
+            position: absolute;
+            inset: 12px;
+            border: 1px solid rgba(255,255,255,0.6);
+            opacity: 1;
+            pointer-events: none;
+            transition: opacity 0.35s;
+        }
+
+        #hero-frame.vn-mode::after {
+            opacity: 0;
+        }
+
+        #hero-scanlines {
+            position: absolute;
+            inset: 0;
+            z-index: 5;
+            pointer-events: none;
+            background: linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.25) 51%);
+            background-size: 100% 4px;
+            opacity: 0;
+            mix-blend-mode: overlay;
+        }
+
+        #page-1-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to right, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 50%, transparent 100%);
+            opacity: 0;
+            z-index: 15;
+            will-change: opacity;
+        }
+
+        #page-1 { z-index: 25; }
+
+        #vn-panel {
+            position: absolute;
+            bottom: 8vh;
+            left: 8vw;
+            width: 45vw;
+            max-width: 800px;
+            z-index: 30;
+            opacity: 0;
+            transform: translate3d(0,30px,0);
+            will-change: transform, opacity;
+            contain: layout paint style;
+        }
+
+        .vn-nametag {
+            display: inline-block;
+            background: #fff;
+            color: #000;
+            font-family: var(--font-serif);
+            font-weight: 800;
+            font-size: 1.5rem;
+            letter-spacing: 4px;
+            padding: 8px 24px;
+            margin-bottom: 24px;
+            position: relative;
+        }
+
+        .vn-nametag::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -6px;
+            width: 6px;
+            height: 100%;
+            background: var(--accent);
+        }
+
+        .vn-dialog {
+            font-family: var(--font-zh);
+            font-size: 1.15rem;
+            line-height: 2;
+            color: #e5e5e5;
+            min-height: 120px;
+            max-height: 35vh;
+            overflow-y: auto;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            padding-right: 8px;
+            overscroll-behavior: contain;
+        }
+
+        .typing-cursor::after {
+            content: '█';
+            animation: blink 1s step-end infinite;
+            color: var(--accent);
+            margin-left: 4px;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        .vn-dialog .user-msg { color: #d4af37; }
+        .dialog-line { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 2px; }
+        .dialog-line:hover .dialog-del { opacity: 1; }
+        .dialog-del {
+            opacity: 0; background: none; border: none; color: #666;
+            cursor: pointer; padding: 2px 4px; font-size: 0.75rem; transition: opacity 0.15s;
+            flex-shrink: 0; margin-top: 2px;
+        }
+        .dialog-del:hover { color: #ff4444; }
+        .vn-dialog .sys-msg { color: #e5e5e5; white-space: pre-wrap; }
+        .vn-dialog .error-msg { color: #ff4444; white-space: pre-wrap; }
+        .vn-dialog .meta-msg { color: #888; font-size: 0.95rem; }
+        
+        /* 记忆命中视觉反馈 */
+        .memory-hit-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--accent-dim);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 4px 12px;
+            font-size: 0.8rem;
+            font-family: var(--font-sans);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            animation: pulse-glow 2s infinite;
+        }
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 5px rgba(212, 175, 55, 0.2); }
+            50% { box-shadow: 0 0 15px rgba(212, 175, 55, 0.6); }
+        }
+
+        .vn-input-box {
+            margin-top: 40px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            padding-bottom: 12px;
+        }
+
+        .vn-input-box input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #fff;
+            font-family: var(--font-sans);
+            font-size: 1.2rem;
+            margin-left: 16px;
+        }
+
+        nav {
+            position: fixed;
+            top: 40px;
+            left: 40px;
+            right: 40px;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            contain: layout paint style;
+        }
+
+        .nav-logo {
+            font-family: var(--font-serif);
+            font-size: 1.2rem;
+            font-weight: 800;
+            letter-spacing: 4px;
+        }
+
+        .nav-links span {
+            margin-left: 40px;
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #666;
+            cursor: pointer;
+            transition: color 0.2s;
+            position: relative;
+        }
+
+        .nav-links span.active { color: #fff; }
+
+        .nav-links span.active::after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            left: 0;
+            width: 100%;
+            height: 1px;
+            background: #fff;
+        }
+
+        .scroll-hint {
+            position: fixed;
+            bottom: 40px;
+            right: 40px;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 0.7rem;
+            letter-spacing: 3px;
+            color: #888;
+        }
+
+        .scroll-track {
+            width: 60px;
+            height: 1px;
+            background: rgba(255,255,255,0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .scroll-thumb {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: #fff;
+            transform: translate3d(-100%,0,0);
+            animation: scan 2s infinite ease-in-out;
+        }
+
+        @keyframes scan {
+            100% { transform: translate3d(100%,0,0); }
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            padding: 15vh 10vw;
+            max-width: 1400px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 20;
+            opacity: 0;
+            transform: translate3d(0,20px,0);
+            will-change: transform, opacity;
+            contain: layout paint style;
+            padding-bottom: 100px;
+        }
+
+        .config-card {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            padding: 48px;
+            backdrop-filter: blur(16px);
+        }
+
+        .config-card h2 {
+            font-family: var(--font-serif);
+            font-size: 2rem;
+            margin-bottom: 16px;
+            color: var(--accent);
+        }
+
+        .tiny-help {
+            color: #777;
+            font-size: 12px;
+            line-height: 1.6;
+            margin-top: 8px;
+        }
+
+        #console-drawer {
+            position: fixed;
+            right: 0;
+            top: 0;
+            width: 320px;
+            height: 100vh;
+            background: rgba(0,0,0,0.9);
+            backdrop-filter: blur(16px);
+            border-left: 1px solid rgba(255,255,255,0.1);
+            z-index: 200;
+            transform: translate3d(100%,0,0);
+            transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            flex-direction: column;
+            padding: 2rem 1rem;
+            will-change: transform;
+            contain: layout paint style;
+        }
+
+        #console-drawer.open {
+            transform: translate3d(0,0,0);
+        }
+
+        #console-toggle {
+            position: fixed;
+            right: 20px;
+            top: 50%;
+            transform: translate3d(0,-50%,0);
+            z-index: 210;
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 1.5rem;
+            cursor: pointer;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+        }
+
+        #console-toggle:hover { opacity: 1; }
+
+        .console-log {
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            color: #aaa;
+            overflow-y: auto;
+            flex: 1;
+            margin-bottom: 1rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+            overscroll-behavior: contain;
+        }
+
+        .console-log > div { margin-bottom: 4px; }
+
+        .console-input {
+            display: flex;
+            gap: 8px;
+        }
+
+        .console-input input {
+            flex: 1;
+            background: transparent;
+            border: 1px solid #333;
+            padding: 8px;
+            color: #fff;
+            font-family: monospace;
+        }
+
+        .console-input button {
+            background: #fff;
+            color: #000;
+            border: none;
+            padding: 8px 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        body.low-performance .config-card,
+        body.low-performance #console-drawer,
+        body.low-performance.hover-btn #cursor-ring {
+            backdrop-filter: none;
+        }
+
+        body.low-performance .gallery-item {
+            filter: grayscale(45%);
+            box-shadow: 0 12px 24px -18px rgba(0,0,0,0.85);
+        }
+
+        body.low-performance .data-stream,
+        body.low-performance .scroll-thumb {
+            animation: none !important;
+        }
+
+        body.low-performance #hero-scanlines {
+            display: none !important;
+        }
+
+        body.low-performance #page-1-overlay {
+            background: rgba(0, 0, 0, 0.78);
+        }
+
+        body.low-performance.hover-img #cursor-ring,
+        body.low-performance #cursor-ring {
+            mix-blend-mode: normal;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            body, html { cursor: auto; }
+            #cursor-dot, #cursor-ring { display: none; }
+            *, *::before, *::after {
+                animation-duration: 0.001ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.001ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+
+        @media (max-width: 900px) {
+            body, html { cursor: auto; }
+            #cursor-dot, #cursor-ring { display: none; }
+            nav { left: 20px; right: 20px; top: 20px; }
+            .nav-logo { white-space: nowrap; font-size: 0.95rem; letter-spacing: 2px; }
+            .nav-links { display: flex; gap: 16px; }
+            .nav-links span { margin-left: 0; font-size: 0; white-space: nowrap; }
+            .nav-links span::before { content: attr(data-mobile-label); font-size: 0.7rem; }
+            #hero-frame { width: 260px; height: 380px; }
+            #vn-panel { left: 6vw; width: 88vw; bottom: max(3vh, env(safe-area-inset-bottom)); }
+            #page-1-overlay, body.low-performance #page-1-overlay {
+                background: linear-gradient(to bottom, transparent 24%, rgba(5,5,5,0.25) 40%, #050505 58%);
+            }
+            .vn-nametag { font-size: 1rem; padding: 6px 16px; margin-bottom: 8px; }
+            .vn-dialog { font-size: 1rem; min-height: 10vh; max-height: 22vh; }
+            .vn-input-box { margin-top: 16px; gap: 4px; }
+            .vn-input-box input { font-size: 1rem; margin-left: 0; }
+            .config-grid { grid-template-columns: 1fr; gap: 24px; padding: 12vh 6vw; }
+            .config-card { padding: 28px; }
+            .scroll-hint { display: none; }
+        }
+
+        /* Mic recording pulse animation */
+        #vn-mic.recording {
+            border-color: #ef4444 !important;
+            color: #ef4444 !important;
+            animation: mic-pulse 0.8s infinite;
+        }
+        @keyframes mic-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+            50%      { box-shadow: 0 0 0 12px rgba(239,68,68,0); }
+        }
+    </style>
+</head>
+<body class="public-mode">
+    <div class="bg-grid"></div>
+    <div id="file-preview-notice" role="status">
+        <span>文件预览。体验动态铁小川与聊天，请双击 run_web.bat，打开终端显示的地址。</span>
+        <a href="http://127.0.0.1:8002/">打开本机网页版（默认端口）</a>
+    </div>
+
+    <div id="cursor-dot"></div>
+    <div id="cursor-ring"></div>
+
+    <div id="drop-zone">
+        <div class="drop-box">
+            <i class="fas fa-satellite-dish drop-icon"></i>
+            <div class="font-serif text-2xl font-bold">INCOMING TRANSMISSION</div>
+            <div class="text-sm text-gray-400 mt-2 font-zh font-light tracking-widest uppercase">松开以上传为主立绘</div>
+        </div>
+    </div>
+
+    <div id="preloader">
+        <div class="data-stream"></div>
+        <div class="pl-percent" id="pl-percent">00</div>
+        <div class="pl-line-container"><div class="pl-line" id="pl-line"></div></div>
+        <div class="pl-log" id="pl-log">Initializing LINGSHU...</div>
+    </div>
+
+    <nav>
+        <div class="nav-logo hover-btn">RHINE LAB.</div>
+        <div class="nav-links">
+            <span class="nav-btn active hover-btn" data-target="0" data-mobile-label="首页">01. OBSERVATION</span>
+            <span class="nav-btn hover-btn" data-target="1" data-mobile-label="对话">02. INTERFACE</span>
+            <span class="nav-btn hover-btn" data-target="2" data-mobile-label="设置">03. CONFIG</span>
+        </div>
+    </nav>
+
+    <div class="scroll-hint">
+        <span>SCROLL TO EXPLORE</span>
+        <div class="scroll-track"><div class="scroll-thumb"></div></div>
+    </div>
+
+    <div id="hero-frame" class="hover-img">
+        <div id="hero-scanlines"></div>
+        <img id="hero-img" src="assets/pet-fallback.png" alt="铁小川" decoding="async" style="object-fit:contain;">
+        <div id="live2d-container" style="position:absolute;inset:0;z-index:1;"></div>
+    </div>
+
+    <main id="main-content">
+        <section id="page-0" class="page active">
+            <div class="outline-bg parallax" data-speed="0.05">路遥</div>
+            <div id="gallery-container"></div>
+            <div style="position: absolute; bottom: 12vh; left: 8vw; z-index: 10;">
+                <div class="text-sm text-gray-500 tracking-[0.5em] mb-4 uppercase split-text">ROBO SYSTEM</div>
+                <h1 class="text-6xl md:text-8xl font-bold font-serif leading-tight split-text">路<br>遥</h1>
+                <p class="mt-6 text-gray-400 max-w-md leading-relaxed split-text font-zh">
+                    "我是桥，不是岸。"<br>
+                    铁路司机专属伙伴。
+                </p>
+            </div>
+        </section>
+
+        <section id="page-1" class="page">
+            <div class="outline-bg parallax" data-speed="0.02" style="font-size: 15vw; opacity: 0.3; right: 0; left: auto; transform: translate3d(0,-50%,0);">INTERFACE</div>
+            <div id="page-1-overlay"></div>
+
+            <div id="vn-panel">
+                <div class="vn-nametag">ROBO</div>
+                <div id="connection-status" class="text-xs text-gray-400 mb-3" role="status">正在连接…</div>
+                <div class="vn-dialog font-zh" id="vn-dialog"></div>
+                <div class="flex items-center gap-4 mt-4">
+                    <button id="mode-toggle" class="text-xs uppercase border border-white/20 px-3 py-1 rounded-full hover:bg-white/10 transition" title="切换 Fast/Deep 模式">FAST</button>
+                    <button id="voice-btn" class="text-xs uppercase border border-white/20 px-3 py-1 rounded-full hover:bg-white/10 transition" title="语音播报开关"><i class="fas fa-volume-up"></i></button>
+                    <button id="demo-btn" class="text-xs uppercase border border-[var(--accent)] text-[var(--accent)] px-3 py-1 rounded-full hover:bg-[var(--accent)]/20 transition font-bold" title="比赛演示模式">DEMO</button>
+                    <select id="mic-select" class="text-xs bg-black border border-white/20 px-2 py-1 rounded-full text-white/60 hover:text-white transition" title="选择麦克风" style="max-width:140px; outline:none; display:none;">
+                        <option value="">默认麦克风</option>
+                    </select>
+                </div>
+                <div class="vn-input-box hover-btn">
+                    <input type="text" id="vn-input" placeholder="和路遥说点什么吧..." autocomplete="off" style="flex:1;min-width:0;">
+                    <button id="vn-mic" class="text-sm px-2 py-1 text-gray-400 hover:text-white transition" title="语音输入"><i class="fas fa-microphone"></i></button>
+                    <button id="vn-send" class="text-xs font-bold tracking-widest uppercase border border-white/30 px-4 py-2 hover:bg-white hover:text-black transition duration-300">发送</button>
+                    <button id="vn-clear" class="text-xs px-2 py-1 text-gray-600 hover:text-red-500 transition ml-2" title="清空对话"><i class="fas fa-trash"></i></button>
+                </div>
+            </div>
+        </section>
+
+        <section id="page-2" class="page" style="overflow-y: auto; pointer-events: auto;">
+            <div class="outline-bg" style="opacity: 0.2; font-size: 18vw;">CONFIG</div>
+            <div class="config-grid" id="config-panel" style="pointer-events: auto;">
+                <div class="config-card">
+                    <h2>Visual Override</h2>
+                    <div class="mb-8">
+                        <p class="text-gray-400 text-sm mb-2 font-zh">立绘 (支持直接拖拽图片到窗口任意位置)</p>
+                        <input type="file" id="upload-avatar" accept="image/*" class="hidden">
+                        <label for="upload-avatar" class="block w-full text-center border border-dashed border-gray-600 py-4 cursor-pointer hover:bg-white/5 transition hover-btn text-xs tracking-widest uppercase">
+                            <i class="fas fa-upload mb-2 text-xl text-gray-400"></i><br> 选择文件
+                        </label>
+                        <p class="tiny-help font-zh">默认显示动态铁小川。上传图片后会保存在当前浏览器，点击“恢复铁小川”即可切回。</p>
+                        <div class="flex gap-2 mt-2">
+                            <input type="text" id="url-avatar" placeholder="https://..." class="flex-1 bg-black border border-gray-800 p-2 text-sm text-white outline-none hover-btn">
+                            <button id="apply-avatar-url" class="bg-white text-black px-4 text-xs font-bold hover:bg-gray-300 transition hover-btn">APPLY</button>
+                        </div>
+                        <div class="flex items-center justify-between border border-white/10 px-3 py-2 mt-2 text-xs text-gray-400">
+                            <span class="font-zh">完整显示立绘</span>
+                            <label class="relative inline-flex items-center cursor-pointer hover-btn">
+                                <input type="checkbox" id="toggle-avatar-contain" class="sr-only peer">
+                                <div class="w-11 h-6 bg-gray-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--accent)]"></div>
+                            </label>
+                        </div>
+                        <button id="reset-avatar" class="mt-2 w-full border border-red-900 text-red-500 text-xs py-2 hover:bg-red-900/20 transition hover-btn">恢复铁小川</button>
+                    </div>
+
+                    <div class="mb-8">
+                        <p class="text-gray-400 text-sm mb-2 font-zh">背景</p>
+                        <input type="file" id="upload-bg" accept="image/*" class="hidden">
+                        <div class="flex gap-2">
+                            <button id="select-bg-file" class="flex-1 border border-dashed border-gray-600 py-3 text-xs hover:bg-white/5 hover-btn">选择文件</button>
+                            <input type="text" id="bg-url" placeholder="https://..." class="flex-1 bg-black border border-gray-800 p-2 text-sm text-white outline-none hover-btn">
+                            <button id="apply-bg-url" class="bg-white text-black px-4 text-xs font-bold hover:bg-gray-300 transition hover-btn">APPLY</button>
+                        </div>
+                        <p class="tiny-help font-zh">背景保存在当前浏览器，刷新后保留。</p>
+                        <button id="reset-bg" class="mt-2 w-full border border-red-900 text-red-500 text-xs py-2 hover:bg-red-900/20 transition hover-btn">Reset to Default</button>
+                    </div>
+                </div>
+
+                <div class="config-card flex flex-col gap-8" data-private>
+                    <div>
+                        <h2>System Memory</h2>
+                        <div class="flex items-center justify-between border-b border-white/10 pb-4 mb-4">
+                            <span>Scanline Filter</span>
+                            <label class="relative inline-flex items-center cursor-pointer hover-btn">
+                                <input type="checkbox" id="toggle-scanlines" checked class="sr-only peer">
+                                <div class="w-11 h-6 bg-gray-800 rounded-full peer peer-checked:after:translate-x-full peer peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--accent)]"></div>
+                            </label>
+                        </div>
+                        <button id="purge-btn" class="w-full py-4 border border-red-900 text-red-500 text-sm font-bold tracking-widest uppercase hover:bg-red-900/20 transition hover-btn">
+                            Purge Neural Cache
+                        </button>
+                    </div>
+                    
+                    <div>
+                        <h2>Memory Palace</h2>
+                        <div id="memory-status" class="text-sm text-gray-400 whitespace-pre-wrap">加载中...</div>
+                        
+                        <!-- 核心记忆手动注入区 -->
+                        <div class="mt-6 p-5 border border-white/10 bg-black/40 rounded-sm">
+                            <p class="text-[11px] text-[var(--accent)] mb-3 font-zh uppercase tracking-widest flex items-center gap-2">
+                                <i class="fas fa-brain"></i> 核心记忆重写
+                            </p>
+                            <div class="flex gap-2">
+                                <input type="text" id="manual-memory-input" placeholder="输入重要的个人事实..." class="flex-1 bg-transparent border border-gray-600 px-3 py-2 text-sm text-white outline-none hover-btn focus:border-[var(--accent)] transition">
+                                <button id="add-manual-memory" class="bg-white text-black px-4 text-xs font-bold hover:bg-gray-300 transition hover-btn uppercase tracking-wider">Inject</button>
+                            </div>
+                            <p class="tiny-help font-zh mt-3 opacity-80">绕过自动提取系统，强制将关键设定刻入底层记忆（如您的身份、喜好或规则）。</p>
+                        </div>
+
+                        <button id="refresh-memory" class="mt-4 w-full py-3 border border-gray-600 text-xs font-bold tracking-widest hover:bg-white/5 transition hover-btn uppercase">Sync & Reindex Memory</button>
+                    </div>
+
+                    <div>
+                        <h2>System Info</h2>
+                        <div id="sysinfo" class="text-sm text-gray-400 whitespace-pre-wrap">CPU: -- | RAM: -- | GPU: --</div>
+                        <button id="refresh-sysinfo" class="mt-4 px-6 py-2 border border-gray-600 text-xs hover:bg-white/5 transition hover-btn">REFRESH</button>
+                    </div>
+
+                </div>
+
+                <!-- AI 人设编辑 -->
+                <div class="config-card" style="grid-column: 1 / -1;" data-private>
+                    <h2><i class="fas fa-brain"></i> AI 人设</h2>
+                    <p class="text-xs text-gray-500 mt-2 mb-3">修改后即时生效。清空内容恢复默认。</p>
+                    <textarea id="persona-editor" class="w-full bg-black border border-gray-700 p-3 text-sm text-white outline-none font-zh resize-y" rows="8" placeholder="加载中..."></textarea>
+                    <div class="flex gap-3 mt-3">
+                        <button id="persona-save" class="bg-[var(--accent)]/20 border border-[var(--accent)] text-[var(--accent)] px-6 py-2 text-xs font-bold tracking-widest hover:bg-[var(--accent)]/30 transition hover-btn uppercase">保存人设</button>
+                        <button id="persona-reset" class="border border-gray-600 px-6 py-2 text-xs text-gray-400 hover:bg-white/5 transition hover-btn uppercase">恢复默认</button>
+                    </div>
+                    <span id="persona-status" class="text-xs text-green-500 ml-2 hidden">已保存</span>
+                </div>
+
+                <!-- 桌宠控制 -->
+                <div class="config-card">
+                    <h2><i class="fas fa-user"></i> 桌宠 · 铁小川</h2>
+                    <p class="text-xs text-gray-500 mt-2 mb-4">自动呼吸 · 眨眼</p>
+                    <div>
+                        <label class="text-xs text-gray-400 mb-2 block">大小 <span id="l2d-scale-val" class="text-[var(--accent)]">—</span></label>
+                        <input type="range" id="l2d-scale" min="5" max="80" value="20" step="1" class="w-full accent-[var(--accent)]">
+                    </div>
+                </div>
+
+                <!-- Robot (ElectronBot) Control -->
+                <div class="config-card" style="grid-column: 1 / -1;" data-private>
+                    <h2><i class="fas fa-robot"></i> Robot Control <span class="text-xs text-gray-500 font-normal ml-2">—— ElectronBot</span></h2>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                        <!-- Connection -->
+                        <div class="border border-white/10 p-5 rounded-sm">
+                            <p class="text-xs text-gray-400 font-zh mb-4 uppercase tracking-widest">连接管理</p>
+                            <div class="flex gap-3 mb-4">
+                                <button id="robot-connect-btn" class="flex-1 bg-green-800/40 border border-green-600 text-green-300 py-3 text-xs font-bold tracking-widest hover:bg-green-700/40 transition hover-btn uppercase">Connect USB</button>
+                                <button id="robot-disconnect-btn" class="flex-1 bg-red-800/20 border border-red-800 text-red-400 py-3 text-xs font-bold tracking-widest hover:bg-red-800/30 transition hover-btn uppercase">Disconnect</button>
+                            </div>
+                            <button id="robot-self-test-btn" class="w-full bg-white/5 border border-white/10 text-white py-3 text-xs font-bold tracking-widest hover:bg-white/10 transition hover-btn uppercase mb-4">Self Test</button>
+                            <div id="robot-conn-status" class="text-xs text-gray-500 font-mono">状态：未连接</div>
+                        </div>
+
+                        <!-- Servo Control -->
+                        <div class="border border-white/10 p-5 rounded-sm">
+                            <p class="text-xs text-gray-400 font-zh mb-4 uppercase tracking-widest">舵机控制 (6-DOF)</p>
+                            <div class="grid grid-cols-3 gap-2 mb-4">
+                                <div>
+                                    <label class="text-[10px] text-gray-500 uppercase block mb-1">J1 (Base)</label>
+                                    <input type="range" id="servo-j1" min="-90" max="90" value="0" step="1" class="w-full accent-[var(--accent)]">
+                                    <span class="text-xs text-gray-400 font-mono" id="servo-val-j1">0°</span>
+                                </div>
+                                <div>
+                                    <label class="text-[10px] text-gray-500 uppercase block mb-1">J2 (Shoulder)</label>
+                                    <input type="range" id="servo-j2" min="-90" max="90" value="0" step="1" class="w-full accent-[var(--accent)]">
+                                    <span class="text-xs text-gray-400 font-mono" id="servo-val-j2">0°</span>
+                                </div>
+                                <div>
+                                    <label class="text-[10px] text-gray-500 uppercase block mb-1">J3 (Elbow)</label>
+                                    <input type="range" id="servo-j3" min="-90" max="90" value="0" step="1" class="w-full accent-[var(--accent)]">
+                                    <span class="text-xs text-gray-400 font-mono" id="servo-val-j3">0°</span>
+                                </div>
+                                <div>
+                                    <label class="text-[10px] text-gray-500 uppercase block mb-1">J4 (Wrist R)</label>
+                                    <input type="range" id="servo-j4" min="-90" max="90" value="0" step="1" class="w-full accent-[var(--accent)]">
+                                    <span class="text-xs text-gray-400 font-mono" id="servo-val-j4">0°</span>
+                                </div>
+                                <div>
+                                    <label class="text-[10px] text-gray-500 uppercase block mb-1">J5 (Wrist P)</label>
+                                    <input type="range" id="servo-j5" min="-90" max="90" value="0" step="1" class="w-full accent-[var(--accent)]">
+                                    <span class="text-xs text-gray-400 font-mono" id="servo-val-j5">0°</span>
+                                </div>
+                                <div>
+                                    <label class="text-[10px] text-gray-500 uppercase block mb-1">J6 (Gripper)</label>
+                                    <input type="range" id="servo-j6" min="-90" max="90" value="0" step="1" class="w-full accent-[var(--accent)]">
+                                    <span class="text-xs text-gray-400 font-mono" id="servo-val-j6">0°</span>
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                <button id="robot-set-joints-btn" class="flex-1 bg-[var(--accent)]/20 border border-[var(--accent)] text-[var(--accent)] py-2 text-xs font-bold tracking-widest hover:bg-[var(--accent)]/30 transition hover-btn uppercase">Apply Joints</button>
+                                <button id="robot-home-btn" class="flex-1 bg-white/5 border border-white/10 text-white py-2 text-xs font-bold tracking-widest hover:bg-white/10 transition hover-btn uppercase">Home (All 0°)</button>
+                            </div>
+                        </div>
+
+                        <!-- Display Control -->
+                        <div class="border border-white/10 p-5 rounded-sm">
+                            <p class="text-xs text-gray-400 font-zh mb-4 uppercase tracking-widest">屏幕表达</p>
+                            <div class="grid grid-cols-4 gap-2 mb-4">
+                                <button data-emoji="happy" class="emoji-btn bg-white/5 border border-white/10 py-3 text-xs hover:bg-[var(--accent)]/20 transition hover-btn uppercase tracking-wide">😊 开心</button>
+                                <button data-emoji="sad" class="emoji-btn bg-white/5 border border-white/10 py-3 text-xs hover:bg-[var(--accent)]/20 transition hover-btn uppercase tracking-wide">😢 难过</button>
+                                <button data-emoji="angry" class="emoji-btn bg-white/5 border border-white/10 py-3 text-xs hover:bg-[var(--accent)]/20 transition hover-btn uppercase tracking-wide">😠 愤怒</button>
+                                <button data-emoji="surprised" class="emoji-btn bg-white/5 border border-white/10 py-3 text-xs hover:bg-[var(--accent)]/20 transition hover-btn uppercase tracking-wide">😲 惊恐</button>
+                                <button data-emoji="neutral" class="emoji-btn bg-white/5 border border-white/10 py-3 text-xs hover:bg-[var(--accent)]/20 transition hover-btn uppercase tracking-wide">😐 静态</button>
+                                <button data-emoji="excited" class="emoji-btn bg-white/5 border border-white/10 py-3 text-xs hover:bg-[var(--accent)]/20 transition hover-btn uppercase tracking-wide">🤩 兴奋</button>
+                                <button data-emoji="disdain" class="emoji-btn bg-white/5 border border-white/10 py-3 text-xs hover:bg-[var(--accent)]/20 transition hover-btn uppercase tracking-wide">😏 不屑</button>
+                                <button id="robot-read-gesture-btn" class="bg-white/5 border border-white/10 py-3 text-xs hover:bg-[var(--accent)]/20 transition hover-btn uppercase tracking-wide">🖐 手势</button>
+                            </div>
+                            <div id="robot-display-status" class="text-xs text-gray-500 font-mono"></div>
+                        </div>
+
+                        <!-- Joint Readback -->
+                        <div class="border border-white/10 p-5 rounded-sm">
+                            <p class="text-xs text-gray-400 font-zh mb-4 uppercase tracking-widest">实时关节回读</p>
+                            <div id="robot-joint-readings" class="text-xs text-gray-400 font-mono whitespace-pre-wrap leading-relaxed">点击下方按钮读取</div>
+                            <button id="robot-read-joints-btn" class="mt-3 w-full bg-white/5 border border-white/10 py-2 text-xs font-bold tracking-widest hover:bg-white/10 transition hover-btn uppercase">Read Joints</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <button id="console-toggle" title="控制台"><i class="fas fa-terminal"></i></button>
+    <div id="console-drawer">
+        <div class="flex justify-between items-center mb-4">
+            <span class="text-sm font-bold tracking-widest">BACKEND CONSOLE</span>
+            <button id="console-clear" class="text-xs border border-white/20 px-2 py-1 hover:bg-white/10">CLEAR</button>
+        </div>
+        <div id="console-log" class="console-log"></div>
+        <div class="console-input">
+            <input type="text" id="console-cmd" placeholder="allowed: pwd / ls / date / whoami / ipconfig">
+            <button id="console-send">RUN</button>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 全局状态
+        // ==========================================
+        let currentPage = 0;
+        const totalPages = 3;
+        let isAnimating = true;
+        let isDeepMode = false;
+        let voiceEnabled = true;
+        let socket = null;
+        let socketReconnectTimer = null;
+        let socketHeartbeatTimer = null;
+        let avatarObjectUrl = null;
+        let bgObjectUrl = null;
+
+        const DEFAULT_AVATAR = 'assets/pet-fallback.png';
+        const AVATAR_MODE_KEY = 'ls_avatar_mode';
+        const IS_FILE_PREVIEW = window.location.protocol === 'file:';
+        document.body.classList.toggle('file-preview', IS_FILE_PREVIEW);
+        let publicMode = true;
+        let chatInFlight = false;
+        let robotConnected = false;
+        let avatarIsCustom = false;
+        const API_BASE = window.location.origin;
+        const DB_NAME = "lingshu_visual_store";
+        const DB_VERSION = 1;
+        const STORE_NAME = "visuals";
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const lowPowerDevice =
+            (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) ||
+            (navigator.deviceMemory && navigator.deviceMemory <= 4) ||
+            window.matchMedia('(max-width: 900px)').matches;
+
+        let parallaxNodes = [];
+        let galleryNodes = [];
+        let latestNormX = 0;
+        let latestNormY = 0;
+        let smoothNormX = 0;
+        let smoothNormY = 0;
+        let rafMotionId = null;
+        let rafCursorId = null;
+        let resizeTimer = null;
+        let isTabVisible = true;
+        let preloadTimer = null;
+        let preloadDeadlineTimer = null;
+        let parallaxSetters = [];
+        let gallerySetters = [];
+
+        const MAX_DIALOG_LINES = 90;
+        const MAX_CONSOLE_LINES = 160;
+        const MAX_STORED_IMAGE_EDGE = 2400;
+        const MAX_STORED_IMAGE_BYTES = 3 * 1024 * 1024;
+
+        if (lowPowerDevice || prefersReducedMotion.matches) {
+            document.body.classList.add('low-performance');
+        }
+
+        gsap.defaults({ force3D: true, overwrite: 'auto' });
+        gsap.ticker.lagSmoothing(500, 33);
+
+        function $(id) {
+            return document.getElementById(id);
+        }
+
+        function refreshMotionNodes() {
+            parallaxNodes = Array.from(document.querySelectorAll('.parallax'));
+            galleryNodes = Array.from(document.querySelectorAll('.gallery-item'));
+
+            parallaxSetters = parallaxNodes.map(el => ({
+                x: gsap.quickSetter(el, 'x', 'px'),
+                y: gsap.quickSetter(el, 'y', 'px'),
+                speed: parseFloat(el.getAttribute('data-speed') || 0.05)
+            }));
+
+            gallerySetters = galleryNodes.map((el, i) => ({
+                x: gsap.quickSetter(el, 'x', 'px'),
+                y: gsap.quickSetter(el, 'y', 'px'),
+                speed: 0.02 + (i % 3) * 0.02
+            }));
+        }
+
+        function trimChildren(el, maxChildren) {
+            while (el.children.length > maxChildren) {
+                el.removeChild(el.firstElementChild);
+            }
+        }
+
+        function isAllowedImageUrl(url) {
+            try {
+                const u = new URL(url, window.location.href);
+                return u.protocol === "http:" || u.protocol === "https:" || url.startsWith("data:image/") || url.startsWith("blob:");
+            } catch (_) {
+                return false;
+            }
+        }
+
+        async function apiFetch(path, options = {}) {
+            if (IS_FILE_PREVIEW) {
+                throw new Error('请先双击 run_web.bat，打开终端显示的网页地址后再使用聊天。');
+            }
+            if (!options.signal && typeof AbortSignal.timeout === 'function') {
+                options = {...options, signal: AbortSignal.timeout(path === '/chat' ? 300000 : 15000)};
+            }
+            const res = await fetch(`${API_BASE}${path}`, options);
+            let data = null;
+            const contentType = res.headers.get("content-type") || "";
+            if (contentType.includes("application/json")) data = await res.json();
+            else data = await res.text();
+            if (!res.ok) {
+                const detail = data && typeof data === "object" ? (data.detail || JSON.stringify(data)) : String(data || res.statusText);
+                throw new Error(detail);
+            }
+            return data;
+        }
+
+        function safeSetText(el, text) {
+            el.textContent = text == null ? "" : String(text);
+        }
+
+        // ==========================================
+        // IndexedDB 图片持久化
+        // ==========================================
+        function openVisualDB() {
+            return new Promise((resolve, reject) => {
+                if (!window.indexedDB) {
+                    reject(new Error("当前浏览器不支持 IndexedDB"));
+                    return;
+                }
+                const req = indexedDB.open(DB_NAME, DB_VERSION);
+                req.onupgradeneeded = () => {
+                    const db = req.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
+                };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error || new Error("IndexedDB 打开失败"));
+            });
+        }
+
+        async function idbSet(key, value) {
+            const db = await openVisualDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, "readwrite");
+                tx.objectStore(STORE_NAME).put(value, key);
+                tx.oncomplete = () => { db.close(); resolve(); };
+                tx.onerror = () => { db.close(); reject(tx.error || new Error("IndexedDB 写入失败")); };
+            });
+        }
+
+        async function idbGet(key) {
+            const db = await openVisualDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, "readonly");
+                const req = tx.objectStore(STORE_NAME).get(key);
+                req.onsuccess = () => resolve(req.result || null);
+                req.onerror = () => reject(req.error || new Error("IndexedDB 读取失败"));
+                tx.oncomplete = () => db.close();
+            });
+        }
+
+        async function idbDelete(key) {
+            const db = await openVisualDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, "readwrite");
+                tx.objectStore(STORE_NAME).delete(key);
+                tx.oncomplete = () => { db.close(); resolve(); };
+                tx.onerror = () => { db.close(); reject(tx.error || new Error("IndexedDB 删除失败")); };
+            });
+        }
+
+        function blobToObjectUrl(blob, oldUrl) {
+            if (oldUrl) URL.revokeObjectURL(oldUrl);
+            return URL.createObjectURL(blob);
+        }
+
+        async function fileToImageBitmap(file) {
+            if ('createImageBitmap' in window) {
+                try {
+                    return await createImageBitmap(file);
+                } catch (_) {}
+            }
+
+            const url = URL.createObjectURL(file);
+            try {
+                const img = new Image();
+                img.decoding = 'async';
+                img.src = url;
+                await img.decode();
+                return img;
+            } finally {
+                URL.revokeObjectURL(url);
+            }
+        }
+
+        function canvasToBlob(canvas, type, quality) {
+            return new Promise((resolve) => {
+                canvas.toBlob(blob => resolve(blob), type, quality);
+            });
+        }
+
+        async function normalizeImageFile(file) {
+            if (!file || !file.type.startsWith('image/')) return file;
+            if (file.type === 'image/gif' || file.type === 'image/svg+xml') return file;
+
+            let bitmap;
+            try {
+                bitmap = await fileToImageBitmap(file);
+            } catch (_) {
+                return file;
+            }
+
+            const sourceWidth = bitmap.width || bitmap.naturalWidth;
+            const sourceHeight = bitmap.height || bitmap.naturalHeight;
+            const longestEdge = Math.max(sourceWidth, sourceHeight);
+
+            if (longestEdge <= MAX_STORED_IMAGE_EDGE && file.size <= MAX_STORED_IMAGE_BYTES) {
+                if (bitmap.close) bitmap.close();
+                return file;
+            }
+
+            const scale = Math.min(1, MAX_STORED_IMAGE_EDGE / longestEdge);
+            const targetWidth = Math.max(1, Math.round(sourceWidth * scale));
+            const targetHeight = Math.max(1, Math.round(sourceHeight * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+
+            const ctx = canvas.getContext('2d', { alpha: true });
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+            if (bitmap.close) bitmap.close();
+
+            let blob = await canvasToBlob(canvas, 'image/webp', 0.92);
+            if (!blob) blob = await canvasToBlob(canvas, 'image/jpeg', 0.92);
+            if (!blob) return file;
+
+            return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.webp', {
+                type: blob.type || 'image/webp',
+                lastModified: Date.now()
+            });
+        }
+
+        async function saveVisualFile(key, file) {
+            const optimizedFile = await normalizeImageFile(file);
+            await idbSet(key, {
+                type: "blob",
+                mime: optimizedFile.type,
+                name: optimizedFile.name,
+                originalName: file.name,
+                originalSize: file.size,
+                storedSize: optimizedFile.size,
+                updatedAt: Date.now(),
+                blob: optimizedFile
+            });
+            return optimizedFile;
+        }
+
+        async function saveVisualUrl(key, url) {
+            await idbSet(key, { type: "url", url, updatedAt: Date.now() });
+        }
+
+        async function loadVisualSource(key) {
+            const item = await idbGet(key);
+            if (!item) return null;
+            if (item.type === "url") return item.url;
+            if (item.type === "blob" && item.blob instanceof Blob) {
+                if (key === "avatar") {
+                    avatarObjectUrl = blobToObjectUrl(item.blob, avatarObjectUrl);
+                    return avatarObjectUrl;
+                }
+                if (key === "background") {
+                    bgObjectUrl = blobToObjectUrl(item.blob, bgObjectUrl);
+                    return bgObjectUrl;
+                }
+            }
+            return null;
+        }
+
+        // ==========================================
+        // 全局拖拽事件
+        // ==========================================
+        function initDragAndDrop() {
+            const dropZone = $('drop-zone');
+            let dragCounter = 0;
+
+            window.addEventListener('dragenter', (e) => {
+                e.preventDefault();
+                dragCounter++;
+                if (dragCounter === 1) {
+                    dropZone.classList.add('active');
+                }
+            });
+
+            window.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dragCounter--;
+                if (dragCounter === 0) {
+                    dropZone.classList.remove('active');
+                    dropZone.classList.remove('drag-over');
+                }
+            });
+
+            window.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('drag-over');
+            });
+
+            window.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                dragCounter = 0;
+                dropZone.classList.remove('active');
+                dropZone.classList.remove('drag-over');
+
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    const file = e.dataTransfer.files[0];
+                    if (!file.type.startsWith('image/')) {
+                        appendDialog('拖拽的文件不是支持的图片格式。', false, true);
+                        return;
+                    }
+                    try {
+                        const optimizedFile = await saveVisualFile("avatar", file);
+                        avatarObjectUrl = blobToObjectUrl(optimizedFile, avatarObjectUrl);
+                        applyAvatarSource(avatarObjectUrl, false);
+                        addConsoleLog(`Avatar updated via Drag&Drop: ${optimizedFile.name}`);
+                    } catch (err) {
+                        appendDialog(`图片加载失败：${err.message}`, false, true);
+                    }
+                }
+            });
+        }
+
+        // ==========================================
+        // Split-Text 引擎
+        // ==========================================
+        function splitTextToSpans() {
+            const fragmentWork = [];
+            document.querySelectorAll('.split-text').forEach(el => {
+                const content = el.innerHTML;
+                const lines = content.split('<br>');
+                el.innerHTML = '';
+                const frag = document.createDocumentFragment();
+
+                lines.forEach((line, lineIdx) => {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = line;
+                    const text = tempDiv.textContent || tempDiv.innerText || "";
+                    for (const char of text) {
+                        const wrap = document.createElement('span');
+                        wrap.className = 'char-wrap';
+                        const inner = document.createElement('span');
+                        inner.className = 'char';
+                        inner.innerHTML = char === ' ' ? '&nbsp;' : char;
+                        wrap.appendChild(inner);
+                        frag.appendChild(wrap);
+                    }
+                    if (lineIdx < lines.length - 1) frag.appendChild(document.createElement('br'));
+                });
+                fragmentWork.push([el, frag]);
+            });
+            fragmentWork.forEach(([el, frag]) => el.appendChild(frag));
+        }
+
+        // ==========================================
+        // 光标与视差
+        // ==========================================
+        const cursorDot = $('cursor-dot');
+        const cursorRing = $('cursor-ring');
+        let mouseX = window.innerWidth / 2;
+        let mouseY = window.innerHeight / 2;
+        let ringX = mouseX;
+        let ringY = mouseY;
+        let dotX = mouseX;
+        let dotY = mouseY;
+
+        window.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+            latestNormX = (mouseX / window.innerWidth - 0.5) * 2;
+            latestNormY = (mouseY / window.innerHeight - 0.5) * 2;
+        }, { passive: true });
+
+        function startMotionLoop() {
+            if (rafMotionId || prefersReducedMotion.matches) return;
+            let frame = 0;
+            const skipEveryOtherFrame = lowPowerDevice;
+
+            const loop = () => {
+                frame++;
+                if (isTabVisible && !isAnimating && !(skipEveryOtherFrame && frame % 2 !== 0)) {
+                    smoothNormX += (latestNormX - smoothNormX) * 0.08;
+                    smoothNormY += (latestNormY - smoothNormY) * 0.08;
+
+                    for (const item of parallaxSetters) {
+                        item.x(smoothNormX * 100 * item.speed);
+                        item.y(smoothNormY * 100 * item.speed);
+                    }
+
+                    if (currentPage === 0) {
+                        for (const item of gallerySetters) {
+                            item.x(-smoothNormX * 150 * item.speed);
+                            item.y(-smoothNormY * 150 * item.speed);
+                        }
+                    }
+                }
+                rafMotionId = requestAnimationFrame(loop);
+            };
+            rafMotionId = requestAnimationFrame(loop);
+        }
+
+        function renderCursor() {
+            if (window.matchMedia('(max-width: 900px)').matches || prefersReducedMotion.matches) return;
+            dotX += (mouseX - dotX) * 0.4;
+            dotY += (mouseY - dotY) * 0.4;
+            cursorDot.style.transform = `translate3d(${dotX}px, ${dotY}px, 0)`;
+            ringX += (mouseX - ringX) * 0.15;
+            ringY += (mouseY - ringY) * 0.15;
+            cursorRing.style.transform = `translate3d(${ringX}px, ${ringY}px, 0)`;
+            rafCursorId = requestAnimationFrame(renderCursor);
+        }
+
+        function bindCursorEvents() {
+            if (bindCursorEvents.bound) return;
+            bindCursorEvents.bound = true;
+            document.body.addEventListener('pointerover', (e) => {
+                const target = e.target;
+                if (!(target instanceof Element)) return;
+                if (target.closest('.hover-img')) document.body.classList.add('hover-img');
+                if (target.closest('.hover-btn, input, button, label')) document.body.classList.add('hover-btn');
+            }, { passive: true });
+            document.body.addEventListener('pointerout', (e) => {
+                const target = e.target;
+                if (!(target instanceof Element)) return;
+                if (target.closest('.hover-img')) document.body.classList.remove('hover-img');
+                if (target.closest('.hover-btn, input, button, label')) document.body.classList.remove('hover-btn');
+            }, { passive: true });
+        }
+
+        // ==========================================
+        // 画廊
+        // ==========================================
+        const bgImages = [
+            "https://images.unsplash.com/photo-1618331835717-801e976710b2?q=80&w=700",
+            "https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=700",
+            "https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=700",
+            "https://images.unsplash.com/photo-1605806616949-1e87b487cb2a?q=80&w=700",
+            "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=700",
+            "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=700"
+        ];
+
+        function initGallery() {
+            const container = $('gallery-container');
+            container.textContent = '';
+            const ww = window.innerWidth;
+            const wh = window.innerHeight;
+            const scale = window.matchMedia('(max-width: 900px)').matches ? 0.78 : 1;
+            const positions = [
+                {x: ww * 0.1, y: wh * 0.2, w: 200 * scale, h: 280 * scale},
+                {x: ww * 0.8, y: wh * 0.15, w: 180 * scale, h: 240 * scale},
+                {x: ww * 0.75, y: wh * 0.7, w: 220 * scale, h: 300 * scale},
+                {x: ww * 0.2, y: wh * 0.8, w: 250 * scale, h: 180 * scale},
+                {x: ww * 0.05, y: wh * 0.5, w: 150 * scale, h: 200 * scale},
+                {x: ww * 0.85, y: wh * 0.4, w: 160 * scale, h: 220 * scale}
+            ];
+
+            const frag = document.createDocumentFragment();
+            bgImages.forEach((url, i) => {
+                const pos = positions[i % positions.length];
+                const div = document.createElement('div');
+                div.className = 'gallery-item hover-img';
+                div.style.left = pos.x + 'px';
+                div.style.top = pos.y + 'px';
+                div.style.width = pos.w + 'px';
+                div.style.height = pos.h + 'px';
+                gsap.set(div, { y: 100, opacity: 0 });
+                const img = document.createElement('img');
+                img.src = url;
+                img.decoding = "async";
+                img.loading = i < 2 ? "eager" : "lazy";
+                img.addEventListener('error', () => { img.style.display = 'none'; });
+                div.appendChild(img);
+                frag.appendChild(div);
+            });
+            container.appendChild(frag);
+            bindCursorEvents();
+            refreshMotionNodes();
+        }
+
+        // ==========================================
+        // 预加载
+        // ==========================================
+        function startPreloader() {
+            let progress = 0;
+            const logs = ["Connecting to terminal...", "Loading visual assets...", "Syncing neural vectors...", "Ready."];
+            let logIdx = 0;
+            // Page entry must not depend on an animation callback or API response.
+            preloadDeadlineTimer = setTimeout(finishPreloader, 7000);
+            preloadTimer = setInterval(() => {
+                progress += Math.floor(Math.random() * 15) + 5;
+                if (progress >= 100) progress = 100;
+                $('pl-percent').innerText = progress < 10 ? '0' + progress : String(progress);
+                $('pl-line').style.width = progress + '%';
+                if (progress >= (logIdx + 1) * 25 && logIdx < logs.length) {
+                    $('pl-log').innerText = logs[logIdx];
+                    logIdx++;
+                }
+                if (progress === 100) {
+                    clearInterval(preloadTimer);
+                    preloadTimer = null;
+                    setTimeout(revealSite, 250);
+                }
+            }, lowPowerDevice ? 30 : 40); 
+        }
+
+        function finishPreloader() {
+            clearInterval(preloadTimer);
+            clearTimeout(preloadDeadlineTimer);
+            preloadTimer = null;
+            preloadDeadlineTimer = null;
+            $('preloader').style.display = 'none';
+            isAnimating = false;
+        }
+
+        function revealSite() {
+            const fast = lowPowerDevice || prefersReducedMotion.matches;
+            const tl = gsap.timeline({ defaults: { force3D: true }, onComplete: finishPreloader });
+            tl.to('#preloader', { yPercent: -100, duration: fast ? 0.65 : 1.05, ease: "power4.inOut" })
+              .fromTo('.outline-bg', { opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1, duration: fast ? 0.65 : 1.15, ease: "power3.out" }, "-=0.45")
+              .fromTo('#hero-frame', { scale: 0.9, opacity: 0, y: 32 }, { scale: 1, opacity: 1, y: 0, duration: fast ? 0.72 : 1.05, ease: "power3.out" }, "-=0.8")
+              .to('.gallery-item', { y: 0, opacity: 0.4, duration: fast ? 0.55 : 0.85, stagger: fast ? 0.035 : 0.08, ease: "power3.out" }, "-=0.62")
+              .to('.char', {
+                  y: '0%',
+                  opacity: 1,
+                  duration: fast ? 0.48 : 0.68,
+                  stagger: fast ? 0.008 : 0.016,
+                  ease: "power3.out"
+              }, "-=0.78");
+        }
+
+        // ==========================================
+        // Live2D
+        // ==========================================
+        let _l2dModel = null, _l2dApp = null, _l2dLoading = false, _l2dResizeObserver = null, _l2dBounds = null;
+
+        function resizeLive2D() {
+            if (!_l2dApp || !_l2dModel) return;
+            const container = $('live2d-container');
+            const w = container.clientWidth, h = container.clientHeight;
+            if (!w || !h) return;
+            _l2dApp.renderer.resize(w, h);
+            const model = _l2dModel;
+            const bounds = _l2dBounds;
+            const saved = Number(localStorage.getItem('ls_l2d_scale'));
+            const scale = saved >= 0.05 && saved <= 0.8 ? saved :
+                Math.min(w / bounds.width, h / bounds.height) * 0.88;
+            model.scale.set(scale);
+            model.x = w / 2 - bounds.centerX * scale;
+            model.y = h / 2 - bounds.centerY * scale;
+            $('l2d-scale').value = Math.round(scale * 100);
+            $('l2d-scale-val').textContent = scale.toFixed(2);
+        }
+
+        async function initLive2D() {
+            // Browsers cannot fetch the model's files from a file:// origin.
+            if (IS_FILE_PREVIEW) return;
+            if (avatarIsCustom || _l2dLoading || _l2dModel) return;
+            if (typeof PIXI === 'undefined' || !PIXI.live2d || !PIXI.live2d.Live2DModel) return;
+            _l2dLoading = true;
+            try {
+                const container = document.getElementById('live2d-container');
+                const heroFrame = document.getElementById('hero-frame');
+                if (!container || !heroFrame) return;
+                const w = heroFrame.clientWidth || 340;
+                const h = heroFrame.clientHeight || 480;
+
+                const app = new PIXI.Application({ width: w, height: h, transparent: true, backgroundAlpha: 0,
+                    resolution: Math.min(window.devicePixelRatio || 1, 2), autoDensity: true });
+                app.view.style.width = '100%'; app.view.style.height = '100%';
+                container.appendChild(app.view);
+                _l2dApp = app;
+
+                const model = await PIXI.live2d.Live2DModel.from(
+                    'live2d/tiexiaochuan/tiexiaochuan.model3.json', { autoUpdate: true }
+                );
+                // This model's visible meshes extend beyond its declared canvas.
+                // Fit the meshes so the feet remain visible on every page.
+                const internal = model.internalModel, core = internal.coreModel;
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                for (let n = 0; n < core.getDrawableCount(); n++) {
+                    if (core.getDrawableOpacity(n) <= 0) continue;
+                    const vertices = internal.getDrawableVertices(n);
+                    for (let j = 0; j < vertices.length; j += 2) {
+                        minX = Math.min(minX, vertices[j]); maxX = Math.max(maxX, vertices[j]);
+                        minY = Math.min(minY, vertices[j + 1]); maxY = Math.max(maxY, vertices[j + 1]);
+                    }
+                }
+                _l2dBounds = {width: maxX - minX, height: maxY - minY,
+                    centerX: (minX + maxX) / 2, centerY: (minY + maxY) / 2};
+                model.anchor.set(0, 0);
+                app.stage.addChild(model);
+                _l2dModel = model;
+                resizeLive2D();
+                _l2dResizeObserver = new ResizeObserver(resizeLive2D);
+                _l2dResizeObserver.observe(heroFrame);
+                if (!avatarIsCustom) {
+                    container.style.display = 'block';
+                    $('hero-img').style.display = 'none';
+                } else {
+                    app.stop();
+                }
+            } catch (e) {
+                if (_l2dApp) _l2dApp.destroy(true);
+                _l2dApp = null;
+                if (!avatarIsCustom) $('hero-img').style.display = 'block';
+                addConsoleLog(`动态形象加载失败，已显示静态形象：${e.message}`);
+            } finally {
+                _l2dLoading = false;
+            }
+        }
+
+        function setL2DScale(v) {
+            if (_l2dModel) { localStorage.setItem('ls_l2d_scale', v); resizeLive2D(); }
+        }
+
+
+        // ==========================================
+        // 视觉设置
+        // ==========================================
+        async function applySavedVisuals() {
+            try {
+                // Only restore an explicitly selected portrait. Legacy uploads
+                // stay in storage without replacing the default Live2D character.
+                if (localStorage.getItem(AVATAR_MODE_KEY) === 'image') {
+                    const savedAvatar = await loadVisualSource("avatar");
+                    if (savedAvatar) applyAvatarSource(savedAvatar, false);
+                }
+            } catch (e) {
+                addConsoleLog(`Avatar restore failed: ${e.message}`);
+            }
+
+            try {
+                const savedBg = await loadVisualSource("background");
+                if (savedBg) applyBackgroundSource(savedBg, false);
+            } catch (e) {
+                addConsoleLog(`Background restore failed: ${e.message}`);
+            }
+
+            const contain = localStorage.getItem('ls_avatar_fit') === 'contain';
+            setAvatarFitContain(contain);
+            const containToggle = $('toggle-avatar-contain');
+            if (containToggle) containToggle.checked = contain;
+        }
+
+        function applyAvatarSource(src, shouldPersist = true) {
+            if (!isAllowedImageUrl(src)) {
+                appendDialog('图片 URL 不合法，只允许 http/https/data:image/blob。', false, true);
+                return;
+            }
+            $('hero-img').src = src;
+            $('hero-img').alt = '自定义立绘';
+            $('hero-img').style.display = 'block';
+            $('hero-img').style.objectFit = '';
+            avatarIsCustom = true;
+            localStorage.setItem(AVATAR_MODE_KEY, 'image');
+            $('live2d-container').style.display = 'none';
+            if (_l2dApp) _l2dApp.stop();
+            if (shouldPersist) saveVisualUrl("avatar", src).catch(e => addConsoleLog(`Avatar save failed: ${e.message}`));
+        }
+
+        function applyBackgroundSource(src, shouldPersist = true) {
+            if (!isAllowedImageUrl(src)) {
+                appendDialog('背景 URL 不合法，只允许 http/https/data:image/blob。', false, true);
+                return;
+            }
+            document.body.style.setProperty('--custom-bg-image', `url("${src.replace(/"/g, '%22')}")`);
+            document.body.classList.add('has-custom-bg');
+            if (shouldPersist) saveVisualUrl("background", src).catch(e => addConsoleLog(`Background save failed: ${e.message}`));
+        }
+
+        function setAvatarFitContain(enabled) {
+            $('hero-frame').classList.toggle('fit-contain', enabled);
+            localStorage.setItem('ls_avatar_fit', enabled ? 'contain' : 'cover');
+        }
+
+        async function resetAvatar() {
+            localStorage.setItem(AVATAR_MODE_KEY, 'live2d');
+            await idbDelete("avatar").catch(() => {});
+            if (avatarObjectUrl) {
+                URL.revokeObjectURL(avatarObjectUrl);
+                avatarObjectUrl = null;
+            }
+            $('hero-img').src = DEFAULT_AVATAR;
+            $('hero-img').alt = '铁小川';
+            $('hero-img').style.objectFit = 'contain';
+            avatarIsCustom = false;
+            $('url-avatar').value = '';
+            if (_l2dModel) {
+                $('live2d-container').style.display = 'block';
+                $('hero-img').style.display = 'none';
+                _l2dApp.start();
+                resizeLive2D();
+            } else {
+                $('hero-img').style.display = 'block';
+                $('live2d-container').style.display = 'block';
+                await initLive2D();
+            }
+        }
+
+        async function resetBackground() {
+            await idbDelete("background").catch(() => {});
+            if (bgObjectUrl) {
+                URL.revokeObjectURL(bgObjectUrl);
+                bgObjectUrl = null;
+            }
+            document.body.classList.remove('has-custom-bg');
+            document.body.style.removeProperty('--custom-bg-image');
+            $('bg-url').value = '';
+        }
+
+        // ==========================================
+        // 页面转场
+        // ==========================================
+        function shouldIgnoreGlobalWheel(target) {
+            return Boolean(
+                target.closest('#console-drawer') ||
+                target.closest('input') ||
+                target.closest('textarea') ||
+                target.closest('button') ||
+                target.closest('label')
+            );
+        }
+
+        let wheelLock = false;
+        window.addEventListener('wheel', (e) => {
+            if (isAnimating || wheelLock) return;
+            if (shouldIgnoreGlobalWheel(e.target)) return;
+
+            const page2 = $('page-2');
+            if (currentPage === 2 && page2.contains(e.target)) {
+                const { scrollTop, scrollHeight, clientHeight } = page2;
+                const atTop = scrollTop <= 0;
+                const atBottom = scrollTop + clientHeight >= scrollHeight - 5;
+                if ((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+            }
+
+            if (Math.abs(e.deltaY) < 48) return;
+            wheelLock = true;
+            setTimeout(() => { wheelLock = false; }, 320);
+
+            if (e.deltaY > 0) switchPage(currentPage + 1);
+            else switchPage(currentPage - 1);
+        }, { passive: true });
+
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                if (isAnimating) return;
+                const target = parseInt(e.currentTarget.dataset.target, 10);
+                switchPage(target);
+            });
+        });
+
+        function resetHeroVisualState() {
+            gsap.set('#hero-frame', { opacity: 1, filter: 'none' });
+        }
+
+        function setActivePage(prevIndex, targetIndex) {
+            const prev = $(`page-${prevIndex}`);
+            const next = $(`page-${targetIndex}`);
+            prev.classList.remove('active');
+            next.classList.add('active');
+        }
+
+        function switchPage(targetIndex) {
+            if (targetIndex < 0 || targetIndex >= totalPages || targetIndex === currentPage) return;
+            isAnimating = true;
+            const fast = lowPowerDevice || prefersReducedMotion.matches;
+            const prevIndex = currentPage;
+            currentPage = targetIndex;
+
+            gsap.killTweensOf([
+                '#hero-frame', '#page-1-overlay', '#vn-panel', '#config-panel',
+                `#page-${prevIndex}`, `#page-${targetIndex}`,
+                ...galleryNodes
+            ]);
+
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            const activeBtn = document.querySelector(`.nav-btn[data-target="${targetIndex}"]`);
+            if (activeBtn) activeBtn.classList.add('active');
+
+            const prevPage = $(`page-${prevIndex}`);
+            const newPage = $(`page-${targetIndex}`);
+            newPage.classList.add('active');
+            gsap.to(prevPage, { opacity: 0, duration: fast ? 0.22 : 0.38, ease: 'power2.out' });
+            gsap.to(newPage, { opacity: 1, duration: fast ? 0.36 : 0.62, delay: fast ? 0.06 : 0.12, ease: 'power2.out' });
+
+            const heroFrame = $('hero-frame');
+
+            if (targetIndex === 0) {
+                heroFrame.classList.remove('vn-mode');
+                resetHeroVisualState();
+                gsap.to(heroFrame, {
+                    left: '50%', top: '50%', xPercent: -50, yPercent: -50,
+                    width: window.matchMedia('(max-width: 900px)').matches ? 260 : 340,
+                    height: window.matchMedia('(max-width: 900px)').matches ? 380 : 480,
+                    borderRadius: 4,
+                    opacity: 1,
+                    duration: fast ? 0.62 : 0.95,
+                    ease: "power4.inOut"
+                });
+                gsap.to(galleryNodes, { scale: 1, opacity: 0.4, x: 0, y: 0, duration: fast ? 0.48 : 0.75, stagger: fast ? 0.025 : 0.04, ease: "power3.out" });
+                gsap.fromTo('#page-0 .char', { y: '110%', opacity: 0 }, { y: '0%', opacity: 1, duration: fast ? 0.42 : 0.62, stagger: fast ? 0.006 : 0.012, delay: fast ? 0.18 : 0.32, ease: "power3.out" });
+                gsap.to('#page-1-overlay', { opacity: 0, duration: fast ? 0.22 : 0.35 });
+                gsap.to('#vn-panel', { opacity: 0, y: 24, duration: fast ? 0.22 : 0.35 });
+                gsap.to('#config-panel', { opacity: 0, y: 18, duration: fast ? 0.2 : 0.3 });
+            } else if (targetIndex === 1) {
+                heroFrame.classList.add('vn-mode');
+                resetHeroVisualState();
+                const mobile = window.matchMedia('(max-width: 900px)').matches;
+                gsap.to(heroFrame, {
+                    left: mobile ? '50%' : '100%', top: mobile ? '12%' : '0%', xPercent: mobile ? -50 : -100, yPercent: 0,
+                    width: mobile ? '56vw' : '45vw', height: mobile ? '30vh' : '100vh', borderRadius: 0,
+                    opacity: 1,
+                    duration: fast ? 0.62 : 0.95,
+                    ease: "power4.inOut"
+                });
+
+                for (const el of galleryNodes) {
+                    const rect = el.getBoundingClientRect();
+                    const dirX = rect.left > window.innerWidth / 2 ? 260 : -260;
+                    const dirY = rect.top > window.innerHeight / 2 ? 260 : -260;
+                    gsap.to(el, { x: dirX, y: dirY, opacity: 0, scale: 0.55, duration: fast ? 0.42 : 0.62, ease: "power3.in" });
+                }
+
+                gsap.to('#page-1-overlay', { opacity: 1, duration: fast ? 0.42 : 0.72, delay: fast ? 0.12 : 0.28 });
+                gsap.to('#vn-panel', { opacity: 1, y: 0, duration: fast ? 0.48 : 0.72, delay: fast ? 0.2 : 0.42, ease: "power3.out" });
+                gsap.to('#config-panel', { opacity: 0, y: 18, duration: fast ? 0.2 : 0.3 });
+            } else if (targetIndex === 2) {
+                heroFrame.classList.remove('vn-mode');
+                gsap.to(heroFrame, {
+                    left: '-20%', top: '50%', xPercent: 0, yPercent: -50,
+                    width: window.matchMedia('(max-width: 900px)').matches ? 260 : 340,
+                    height: window.matchMedia('(max-width: 900px)').matches ? 380 : 480,
+                    borderRadius: 4,
+                    opacity: 0.2,
+                    duration: fast ? 0.48 : 0.74,
+                    ease: "power3.inOut"
+                });
+                gsap.to('#page-1-overlay', { opacity: 0, duration: fast ? 0.22 : 0.35 });
+                gsap.to('#vn-panel', { opacity: 0, y: 24, duration: fast ? 0.22 : 0.35 });
+                gsap.to('#config-panel', { opacity: 1, y: 0, duration: fast ? 0.45 : 0.7, delay: fast ? 0.14 : 0.28 });
+            }
+
+            setTimeout(() => {
+                setActivePage(prevIndex, targetIndex);
+                isAnimating = false;
+            }, fast ? 760 : 1120);
+        }
+
+        // ==========================================
+        // VN 聊天逻辑
+        // ==========================================
+        
+        async function typewriterEffect(element, text, speed = 25) {
+            element.classList.add('typing-cursor');
+            for (let i = 0; i < text.length; i++) {
+                if (element.dataset.cancelled === 'true') break;
+                element.textContent += text.charAt(i);
+                
+                const box = $('vn-dialog');
+                box.scrollTop = box.scrollHeight;
+                
+                const delay = speed + (Math.random() * 15 - 5);
+                await new Promise(r => setTimeout(r, delay));
+            }
+            element.classList.remove('typing-cursor');
+        }
+
+        function appendDialog(text, isUser = false, isError = false, isMeta = false, animate = false) {
+            const box = $('vn-dialog');
+            const wrapper = document.createElement('div');
+            wrapper.className = 'dialog-line';
+
+            // Delete button
+            const del = document.createElement('button');
+            del.className = 'dialog-del';
+            del.innerHTML = '<i class="fas fa-times"></i>';
+            del.title = '删除此条';
+            del.addEventListener('click', () => wrapper.remove());
+
+            const line = document.createElement('div');
+            line.style.flex = '1';
+            if (isError) {
+                line.className = 'error-msg';
+                if (animate) typewriterEffect(line, `[系统故障] ${text}`);
+                else line.textContent = `[系统故障] ${text}`;
+            } else if (isUser) {
+                line.className = 'user-msg';
+                const prefix = document.createElement('span');
+                prefix.style.color = 'var(--accent)';
+                prefix.textContent = '';
+                line.appendChild(prefix);
+                line.appendChild(document.createTextNode(text));
+            } else if (isMeta) {
+                line.className = 'meta-msg';
+                if (animate) typewriterEffect(line, text);
+                else line.textContent = text;
+            } else {
+                line.className = 'sys-msg';
+                if (animate) typewriterEffect(line, text);
+                else line.textContent = text;
+            }
+
+            wrapper.appendChild(line);
+            wrapper.appendChild(del);
+            box.appendChild(wrapper);
+            trimChildren(box, MAX_DIALOG_LINES);
+            box.scrollTop = box.scrollHeight;
+            return wrapper;
+        }
+
+        // 插入记忆命中视觉标签
+        function appendMemoryBadge(hitCount) {
+            const box = $('vn-dialog');
+            const badgeWrapper = document.createElement('div');
+            
+            const badge = document.createElement('div');
+            badge.className = 'memory-hit-badge';
+            badge.innerHTML = `<i class="fas fa-database"></i> 神经网络共鸣: 调取 ${hitCount} 条记忆片段`;
+            
+            badgeWrapper.appendChild(badge);
+            box.appendChild(badgeWrapper);
+            trimChildren(box, MAX_DIALOG_LINES);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        async function sendChatMessage() {
+            const input = $('vn-input');
+            const text = input.value.trim();
+            if (!text || chatInFlight || _demoRunning) return;
+            chatInFlight = true;
+            $('vn-send').disabled = true;
+            $('demo-btn').disabled = true;
+            input.value = '';
+            
+            appendDialog(text, true);
+
+            const loadingDiv = appendDialog('正在回复…', false, false, true);
+            const mode = isDeepMode ? 'deep' : 'fast';
+
+            try {
+                const data = await apiFetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_input: text, mode })
+                });
+                loadingDiv.remove();
+
+                if (data.response) {
+                    // 检查后端的 memory_debug 字段，如果命中了，就插入一条视觉反馈
+                    if (data.memory_debug && data.memory_debug.hit && data.memory_debug.hit_count > 0) {
+                        appendMemoryBadge(data.memory_debug.hit_count);
+                    }
+
+                    appendDialog(data.response, false, false, false, true);
+                    if (voiceEnabled) playTTS(data.response);
+                } else {
+                    appendDialog('无法解析来自终端的响应数据。', false, true);
+                }
+            } catch (e) {
+                loadingDiv.remove();
+                appendDialog(`信号连接中断：${e.message}`, false, true);
+            } finally {
+                chatInFlight = false;
+                $('vn-send').disabled = false;
+                $('demo-btn').disabled = false;
+            }
+        }
+
+        let _ttsAudio = null, _ttsUrl = null, _ttsRequest = null, _ttsSequence = 0;
+
+        function stopTTS() {
+            _ttsSequence++;
+            if (_ttsRequest) _ttsRequest.abort();
+            _ttsRequest = null;
+            if (_ttsAudio) { _ttsAudio.pause(); _ttsAudio = null; }
+            if (_ttsUrl) URL.revokeObjectURL(_ttsUrl);
+            _ttsUrl = null;
+        }
+
+        async function playTTS(text) {
+            if (!voiceEnabled || IS_FILE_PREVIEW) return;
+            stopTTS();
+            const sequence = _ttsSequence;
+            const controller = new AbortController();
+            _ttsRequest = controller;
+            try {
+                let res;
+                if (text.length > 200) {
+                    res = await fetch(`${API_BASE}/speak`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text }), signal: controller.signal
+                    });
+                } else {
+                    res = await fetch(`${API_BASE}/speak?text=${encodeURIComponent(text)}`, {signal: controller.signal});
+                }
+                if (res.status === 204) return;  // server has no TTS available, silent skip
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const blob = await res.blob();
+                if (sequence !== _ttsSequence || !voiceEnabled) return;
+                if (blob.size < 100) throw new Error('TTS audio too small');
+                // Stop previous audio if still playing
+                const audioUrl = URL.createObjectURL(blob);
+                _ttsUrl = audioUrl;
+                const audio = new Audio(audioUrl);
+                _ttsAudio = audio;
+                const release = () => {
+                    URL.revokeObjectURL(audioUrl);
+                    if (_ttsAudio === audio) { _ttsAudio = null; _ttsUrl = null; }
+                };
+                audio.onended = release;
+                audio.onerror = release;
+                await audio.play();
+            } catch (e) {
+                if (sequence === _ttsSequence) {
+                    if (_ttsUrl) URL.revokeObjectURL(_ttsUrl);
+                    _ttsUrl = null; _ttsAudio = null;
+                }
+            }
+        }
+
+        function handleProactiveMessage(data) {
+            if (data.content) {
+                appendDialog(`[主动汇报] ${data.content}`, false, false, false, true);
+                if (voiceEnabled) playTTS(data.content);
+            }
+        }
+
+        function connectWebSocket() {
+            if (IS_FILE_PREVIEW) return;
+            if (socket) socket.close();
+            if (socketHeartbeatTimer) clearInterval(socketHeartbeatTimer);
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+            socket.onopen = () => {
+                addConsoleLog('WebSocket connected');
+                if (socketReconnectTimer) clearTimeout(socketReconnectTimer);
+                socketHeartbeatTimer = setInterval(() => {
+                    try {
+                        if (socket && socket.readyState === WebSocket.OPEN) socket.send('ping');
+                    } catch (_) {}
+                }, 30000);
+            };
+
+            socket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'proactive') {
+                        handleProactiveMessage(data);
+                        addConsoleLog(`[PROACTIVE] ${data.content || data.reason || '(empty)'}`);
+                    }
+                } catch (_) {}
+            };
+
+            socket.onclose = () => {
+                addConsoleLog('WebSocket disconnected, retrying in 5s...');
+                if (socketHeartbeatTimer) clearInterval(socketHeartbeatTimer);
+                socketReconnectTimer = setTimeout(connectWebSocket, 5000);
+            };
+
+            socket.onerror = () => addConsoleLog('WebSocket error');
+        }
+
+        // ==========================================
+        // 控制台功能
+        // ==========================================
+        const consoleDrawer = $('console-drawer');
+        $('console-toggle').addEventListener('click', () => consoleDrawer.classList.toggle('open'));
+
+        function addConsoleLog(msg) {
+            const log = $('console-log');
+            if (!log) return;
+            const div = document.createElement('div');
+            div.textContent = `> ${msg}`;
+            log.appendChild(div);
+            trimChildren(log, MAX_CONSOLE_LINES);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        $('console-clear').addEventListener('click', () => { $('console-log').innerHTML = ''; });
+
+        async function runConsoleCommand() {
+            const cmdInput = $('console-cmd');
+            const cmd = cmdInput.value.trim();
+            if (!cmd) return;
+            addConsoleLog(cmd);
+            cmdInput.value = '';
+
+            try {
+                const data = await apiFetch('/terminal/exec', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: cmd })
+                });
+                addConsoleLog(data.output || 'Done.');
+            } catch (e) {
+                addConsoleLog(`Command failed: ${e.message}`);
+            }
+        }
+
+        $('console-send').addEventListener('click', runConsoleCommand);
+        $('console-cmd').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') runConsoleCommand();
+        });
+
+        // ==========================================
+        // 设置与持久化
+        // ==========================================
+        async function robotApi(path, method = 'GET', body = null) {
+            if (publicMode) return {ok: false, connected: false};
+            try {
+                const opts = { method, headers: { 'Content-Type': 'application/json' } };
+                if (body) opts.body = JSON.stringify(body);
+                return await apiFetch(path, opts);
+            } catch (e) {
+                addConsoleLog(`[Robot] ${path}: ${e.message}`);
+                return {ok: false, error: e.message};
+            }
+        }
+
+        function initSettings() {
+            $('upload-avatar').addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                try {
+                    const optimizedFile = await saveVisualFile("avatar", file);
+                    avatarObjectUrl = blobToObjectUrl(optimizedFile, avatarObjectUrl);
+                    applyAvatarSource(avatarObjectUrl, false);
+                    addConsoleLog(`Avatar saved: ${optimizedFile.name} (${Math.round(optimizedFile.size / 1024)}KB)`);
+                } catch (err) {
+                    appendDialog(`立绘保存失败：${err.message}`, false, true);
+                } finally {
+                    e.target.value = '';
+                }
+            });
+
+            $('apply-avatar-url').addEventListener('click', async () => {
+                const url = $('url-avatar').value.trim();
+                if (!url) return;
+                if (!isAllowedImageUrl(url)) {
+                    appendDialog('图片 URL 不合法，只允许 http/https/data:image/blob。', false, true);
+                    return;
+                }
+                await saveVisualUrl("avatar", url).catch(e => addConsoleLog(`Avatar URL save failed: ${e.message}`));
+                applyAvatarSource(url, false);
+            });
+
+            $('reset-avatar').addEventListener('click', resetAvatar);
+
+            $('select-bg-file').addEventListener('click', () => $('upload-bg').click());
+            $('upload-bg').addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                try {
+                    const optimizedFile = await saveVisualFile("background", file);
+                    bgObjectUrl = blobToObjectUrl(optimizedFile, bgObjectUrl);
+                    applyBackgroundSource(bgObjectUrl, false);
+                    addConsoleLog(`Background saved: ${optimizedFile.name} (${Math.round(optimizedFile.size / 1024)}KB)`);
+                } catch (err) {
+                    appendDialog(`背景保存失败：${err.message}`, false, true);
+                } finally {
+                    e.target.value = '';
+                }
+            });
+
+            $('apply-bg-url').addEventListener('click', async () => {
+                const url = $('bg-url').value.trim();
+                if (!url) return;
+                if (!isAllowedImageUrl(url)) {
+                    appendDialog('背景 URL 不合法，只允许 http/https/data:image/blob。', false, true);
+                    return;
+                }
+                await saveVisualUrl("background", url).catch(e => addConsoleLog(`Background URL save failed: ${e.message}`));
+                applyBackgroundSource(url, false);
+            });
+
+            $('reset-bg').addEventListener('click', resetBackground);
+
+            const fitToggle = $('toggle-avatar-contain');
+            fitToggle.addEventListener('change', (e) => setAvatarFitContain(e.target.checked));
+
+            const scanlineState = localStorage.getItem('ls_scanlines');
+            const toggle = $('toggle-scanlines');
+            const scanlinesEl = $('hero-scanlines');
+            if (scanlineState === 'off') {
+                toggle.checked = false;
+                scanlinesEl.style.display = 'none';
+            }
+            toggle.addEventListener('change', (e) => {
+                scanlinesEl.style.display = e.target.checked ? 'block' : 'none';
+                localStorage.setItem('ls_scanlines', e.target.checked ? 'on' : 'off');
+            });
+
+            $('purge-btn').addEventListener('click', () => {
+                $('vn-dialog').innerHTML = '';
+                appendDialog('终端通讯缓存已安全清除。', false, false, true);
+            });
+
+            // --- 新增：手动注入记忆功能 ---
+            $('add-manual-memory').addEventListener('click', async () => {
+                const input = $('manual-memory-input');
+                const val = input.value.trim();
+                if (!val) return;
+                
+                const btn = $('add-manual-memory');
+                const originalText = btn.textContent;
+                btn.textContent = '...';
+                
+                try {
+                    // 调用 api_server.py 里的 /memory/manual
+                    await apiFetch('/memory/manual', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ content: val, tag: 'manual' })
+                    });
+                    
+                    input.value = '';
+                    addConsoleLog(`Manual memory injected: ${val}`);
+                    
+                    // 注入后立刻触发同步，使其生效
+                    await syncAndLoadMemory(); 
+                    
+                } catch(e) {
+                    addConsoleLog(`Memory inject failed: ${e.message}`);
+                }
+                
+                btn.textContent = originalText;
+            });
+
+            async function syncAndLoadMemory() {
+                safeSetText($('memory-status'), '同步中...');
+                const btn = $('refresh-memory');
+                const originalText = btn.textContent;
+                btn.textContent = 'SYNCING...';
+
+                try { 
+                    await apiFetch('/memory/sync', { method: 'POST' }); 
+                } catch (_) {}
+                
+                try {
+                    const data = await apiFetch('/memory/status');
+                    safeSetText($('memory-status'), `核心事实: ${data.core_facts || ''}\n记忆条目: ${data.total_entries ?? 0}\n最后同步: ${data.last_sync || 'unknown'}`);
+                } catch (e) {
+                    safeSetText($('memory-status'), `记忆模块离线：${e.message}`);
+                }
+                
+                btn.textContent = originalText;
+            }
+            
+            $('refresh-memory').addEventListener('click', syncAndLoadMemory);
+
+            async function loadSysInfo() {
+                try {
+                    const data = await apiFetch('/sysinfo');
+                    safeSetText($('sysinfo'), `CPU: -- | RAM: ${data.mem || '--'} | GPU: ${data.gpu || '--'}\n游戏: ${data.game || 'None'} (${data.game_duration_min || '0'}min)`);
+                } catch (e) {
+                    safeSetText($('sysinfo'), `系统信息离线：${e.message}`);
+                }
+            }
+            $('refresh-sysinfo').addEventListener('click', loadSysInfo);
+
+            // ==========================================
+            // Robot (ElectronBot) 控制面板
+            // ==========================================
+            function updateRobotStatusDisplay(data) {
+                robotConnected = Boolean(data.connected || data.ok && data.message);
+                const el = $('robot-conn-status');
+                if (!el) return;
+                if (data.ok === false && data.error) {
+                    el.textContent = `状态：错误 — ${data.error}`;
+                    el.style.color = '#ff4444';
+                    return;
+                }
+                const connected = data.connected !== undefined ? data.connected : (data.ok && data.message);
+                el.textContent = connected ? '状态：已连接' : '状态：未连接';
+                el.style.color = connected ? '#4ade80' : '#888';
+                if (data.joints) {
+                    $('robot-joint-readings').textContent = data.joints.map((v, i) => `J${i+1}: ${Number(v).toFixed(1)}°`).join('  ');
+                }
+            }
+
+            async function pollRobotStatus() {
+                const data = await robotApi('/robot/status');
+                updateRobotStatusDisplay(data);
+            }
+
+            // Connect
+            $('robot-connect-btn').addEventListener('click', async () => {
+                const data = await robotApi('/robot/connect', 'POST');
+                updateRobotStatusDisplay(data);
+            });
+
+            // Disconnect
+            $('robot-disconnect-btn').addEventListener('click', async () => {
+                const data = await robotApi('/robot/disconnect', 'POST');
+                updateRobotStatusDisplay(data);
+            });
+
+            // Self Test
+            $('robot-self-test-btn').addEventListener('click', async () => {
+                const data = await robotApi('/robot/self_test');
+                updateRobotStatusDisplay(data);
+            });
+
+            // Servo sliders — update value display
+            for (let i = 1; i <= 6; i++) {
+                const slider = $(`servo-j${i}`);
+                const valSpan = $(`servo-val-j${i}`);
+                if (slider && valSpan) {
+                    slider.addEventListener('input', () => {
+                        valSpan.textContent = slider.value + '°';
+                    });
+                }
+            }
+
+            // Home button — reset all sliders to 0
+            $('robot-home-btn').addEventListener('click', () => {
+                for (let i = 1; i <= 6; i++) {
+                    const slider = $(`servo-j${i}`);
+                    const valSpan = $(`servo-val-j${i}`);
+                    if (slider && valSpan) {
+                        slider.value = 0;
+                        valSpan.textContent = '0°';
+                    }
+                }
+            });
+
+            // Apply Joints
+            $('robot-set-joints-btn').addEventListener('click', async () => {
+                const joints = {};
+                for (let i = 1; i <= 6; i++) {
+                    joints[`j${i}`] = parseFloat($(`servo-j${i}`).value) || 0;
+                }
+                const data = await robotApi('/robot/joints', 'POST', { ...joints, enable: true });
+                if (data.ok) {
+                    addConsoleLog(`[Robot] Joints set: ${Object.values(joints).join(', ')}`);
+                }
+            });
+
+            // Read Joints
+            $('robot-read-joints-btn').addEventListener('click', async () => {
+                const data = await robotApi('/robot/joints');
+                if (data.ok && data.joints) {
+                    $('robot-joint-readings').textContent = data.joints.map((v, i) => `J${i+1}: ${Number(v).toFixed(1)}°`).join('  ');
+                    // Also sync sliders
+                    for (let i = 0; i < Math.min(6, data.joints.length); i++) {
+                        const slider = $(`servo-j${i + 1}`);
+                        const valSpan = $(`servo-val-j${i + 1}`);
+                        if (slider && valSpan) {
+                            const val = Math.round(data.joints[i]);
+                            slider.value = val;
+                            valSpan.textContent = val + '°';
+                        }
+                    }
+                } else {
+                    $('robot-joint-readings').textContent = data.error || '读取失败';
+                }
+            });
+
+            // Emoji buttons
+            document.querySelectorAll('.emoji-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const emoji = btn.dataset.emoji;
+                    const label = btn.textContent.trim();
+                    btn.textContent = '...';
+                    const data = await robotApi('/robot/display', 'POST', { emoji });
+                    $('robot-display-status').textContent = data.ok
+                        ? `已显示: ${label}`
+                        : `失败: ${data.error || 'unknown'}`;
+                    btn.textContent = label;
+                });
+            });
+
+            // Read gesture
+            $('robot-read-gesture-btn').addEventListener('click', async () => {
+                const data = await robotApi('/robot/gesture');
+                if (data.ok && data.extra_data_hex) {
+                    $('robot-display-status').textContent = `手势数据: ${data.extra_data_hex.slice(0, 40)}...`;
+                } else {
+                    $('robot-display-status').textContent = data.error || '读取失败';
+                }
+            });
+
+            // --- AI 人设编辑 ---
+            const ta = $('persona-editor'), st = $('persona-status');
+            async function loadPersona() {
+                try {
+                    const r = await apiFetch('/persona');
+                    if (ta) ta.value = r.text;
+                } catch(e) { if (ta) ta.value = '加载失败'; }
+            }
+            $('persona-save').addEventListener('click', async () => {
+                if (!ta) return;
+                try {
+                    const r = await fetch(`${API_BASE}/persona`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({text: ta.value})
+                    });
+                    const d = await r.json();
+                    if (d.ok) { st.classList.remove('hidden'); st.textContent = '已保存'; st.style.color = '#4f8'; }
+                    else { st.classList.remove('hidden'); st.textContent = '保存失败'; st.style.color = '#f44'; }
+                    setTimeout(() => st.classList.add('hidden'), 2000);
+                } catch(e) { st.classList.remove('hidden'); st.textContent = '保存失败'; st.style.color = '#f44'; }
+            });
+            $('persona-reset').addEventListener('click', async () => {
+                if (!ta) return;
+                if (!confirm('恢复默认人设？当前内容将被清除。')) return;
+                try {
+                    await apiFetch('/persona', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({text: ''})
+                    });
+                    await loadPersona();
+                    st.classList.remove('hidden'); st.textContent = '已恢复默认'; st.style.color = '#4f8';
+                } catch (e) {
+                    st.classList.remove('hidden'); st.textContent = '恢复失败'; st.style.color = '#f44';
+                }
+            });
+
+            // --- 桌宠 ---
+            const l2dScale = $('l2d-scale'), l2dVal = $('l2d-scale-val');
+            if (l2dScale) {
+                const saved = localStorage.getItem('ls_l2d_scale');
+                if (saved) { l2dScale.value = Math.round(parseFloat(saved) * 100); }
+                l2dVal.textContent = (parseInt(l2dScale.value) / 100).toFixed(2);
+                l2dScale.addEventListener('input', () => {
+                    const v = parseInt(l2dScale.value) / 100;
+                    l2dVal.textContent = v.toFixed(2);
+                    setL2DScale(v);
+                });
+            }
+            return () => {
+                if (!publicMode) {
+                    syncAndLoadMemory();
+                    loadSysInfo();
+                    loadPersona();
+                    pollRobotStatus();
+                }
+            };
+        }
+
+        // ==========================================
+        // 演示模式
+        // ==========================================
+        const DEMO_SCRIPT = [
+            { d: 4000,  r: 'system', t: '【铁小川启动】', c: 'demo-stage', e: null, p: null },
+            { d: 6000,  r: 'system', t: '【安静等待，呼吸灯效果】', c: 'demo-stage', e: null, p: null },
+            { d: 6000,  r: 'user',   t: '老兄，今天累死了。路上差点出事。回来想给家里打个电话，又不知道说啥。', e: 'sad', p: null },
+            { d: 8000,  r: 'assistant', t: '听出来了，你心里堵得慌。人累，心更累。', c: 'demo-hug', e: 'neutral', p: null, s: true },
+            { d: 6000,  r: 'system', t: '📊 心率：比平时快 15 跳 | 深叹气：4 次', c: 'demo-data', e: 'surprised', p: null },
+            { d: 10000, r: 'assistant', t: '你今天心率比平时快了15跳，有几次深叹气。这根弦绷太紧了。', c: 'demo-label', e: 'neutral', p: 'think', s: true },
+            { d: 10000, r: 'assistant', t: '洗完澡，把想说的话先写出来。不用发，写下来就好。', c: 'demo-guide', e: 'excited', p: null, s: true },
+            { d: 12000, r: 'assistant', t: '咱俩聊了快半小时了。你昨天说闺女在画画，去问问她画了什么吧。', c: 'demo-stop', e: 'neutral', p: 'nod', s: true },
+            { d: 12000, r: 'assistant', t: '对了，你们车间老李前两天问有没有人去钓鱼。我说你或许有兴趣，他让你回一句。', c: 'demo-social', e: 'happy', p: 'wave', s: true },
+            { d: 12000, r: 'system', t: '【灯光渐变为呼吸灯，静默】', c: 'demo-stage', e: 'neutral', p: null },
+        ];
+
+        let _demoRunning = false, _demoIndex = 0, _demoTimer = null, _demoGeneration = 0;
+
+        function stopDemo(completed = false) {
+            if (_demoTimer) clearTimeout(_demoTimer);
+            _demoTimer = null;
+            _demoRunning = false; _demoIndex = 0; _demoGeneration++;
+            $('demo-btn').textContent = 'DEMO';
+            $('demo-btn').classList.remove('animate-pulse');
+            $('vn-send').disabled = false;
+            $('vn-input').disabled = false;
+            document.querySelectorAll('[data-demo-typing]').forEach(line => { line.dataset.cancelled = 'true'; });
+            stopTTS();
+            appendDialog(completed ? '【预设演示结束】' : '【预设演示已停止】', false, false, true);
+        }
+
+        function startDemo() {
+            if (_demoRunning) return;
+            _demoRunning = true; _demoIndex = 0;
+            _demoGeneration++;
+            $('vn-send').disabled = true;
+            $('vn-input').disabled = true;
+            $('demo-btn').textContent = 'RUNNING';
+            $('demo-btn').classList.add('animate-pulse');
+            appendDialog('【预设演示：对话、心率及场景数据均为示例】', false, false, true);
+            playDemoStep();
+        }
+
+        function playDemoStep() {
+            if (!_demoRunning || _demoIndex >= DEMO_SCRIPT.length) {
+                if (_demoRunning) stopDemo(true);
+                return;
+            }
+            const s = DEMO_SCRIPT[_demoIndex++];
+            const generation = _demoGeneration;
+            _demoTimer = setTimeout(() => {
+                if (!_demoRunning || generation !== _demoGeneration) return;
+                if (s.r === 'user') {
+                    appendDialog(s.t, true);
+                } else if (s.r === 'assistant') {
+                    const wrapper = appendDialog(s.t, false, false, false, true);
+                    wrapper.firstElementChild.dataset.demoTyping = 'true';
+                    if (s.s && voiceEnabled) playTTS(s.t);
+                } else {
+                    appendDialog(s.t, false, false, true);
+                }
+                // Robot emoji
+                if (s.e && robotConnected) robotApi('/robot/display', 'POST', { emoji: s.e }).catch(()=>{});
+                // Robot pose
+                if (s.p && robotConnected) robotApi('/robot/joints', 'POST', poseByName(s.p)).catch(()=>{});
+                if (s.p && _l2dModel && !avatarIsCustom) {
+                    const motion = s.p === 'think' ? '思考' : '招手';
+                    Promise.resolve(_l2dModel.motion(motion)).catch(() => {});
+                }
+                playDemoStep();
+            }, s.d);
+        }
+
+        function poseByName(name) {
+            const poses = { wave: {j1:8,j2:0,j3:0,j4:0,j5:0,j6:43,enable:true}, think: {j1:0,j2:0,j3:0,j4:0,j5:0,j6:47,enable:true}, nod: {j1:8,j2:0,j3:0,j4:0,j5:0,j6:0,enable:true} };
+            return poses[name] || {j1:0,j2:0,j3:0,j4:0,j5:0,j6:0,enable:true};
+        }
+
+        $('demo-btn').addEventListener('click', () => {
+            if (_demoRunning) stopDemo();
+            else startDemo();
+        });
+
+        // ==========================================
+        // 基础事件
+        // ==========================================
+        $('mode-toggle').addEventListener('click', function() {
+            isDeepMode = !isDeepMode;
+            this.textContent = isDeepMode ? 'DEEP' : 'FAST';
+        });
+
+        $('voice-btn').addEventListener('click', function() {
+            voiceEnabled = !voiceEnabled;
+            if (!voiceEnabled) stopTTS();
+            this.innerHTML = voiceEnabled ? '<i class="fas fa-volume-up"></i>' : '<i class="fas fa-volume-mute"></i>';
+        });
+
+        // ==========================================
+        // 语音输入 (Web Speech API - Chrome/Edge)
+        // ==========================================
+        let isRecording = false;
+        let recognition = null;
+
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                $('vn-mic').style.display = 'none';
+                return null;
+            }
+            const rec = new SpeechRecognition();
+            rec.lang = 'zh-CN';
+            rec.interimResults = true;
+            rec.continuous = false;
+            rec.maxAlternatives = 1;
+            return rec;
+        }
+
+        $('vn-mic').addEventListener('click', async function() {
+            if (!recognition) {
+                recognition = initSpeechRecognition();
+            }
+            if (!recognition) {
+                addConsoleLog('语音输入需要 Chrome 或 Edge 浏览器');
+                return;
+            }
+            if (isRecording) {
+                recognition.stop();
+                return;
+            }
+
+            // Request mic permission first (required by browsers)
+            try {
+                const testStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                testStream.getTracks().forEach(t => t.stop());
+            } catch (permErr) {
+                addConsoleLog('麦克风权限未授予！请在浏览器设置中允许麦克风访问');
+                appendDialog('请点击浏览器地址栏左侧的锁图标，开启麦克风权限后再试', false, true);
+                return;
+            }
+
+            isRecording = true;
+            this.classList.add('recording');
+            this.innerHTML = '<i class="fas fa-microphone-alt"></i>';
+            $('vn-input').placeholder = '正在聆听...';
+
+            recognition.onresult = (event) => {
+                let final = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        final += event.results[i][0].transcript;
+                    } else {
+                        $('vn-input').value = event.results[i][0].transcript;
+                    }
+                }
+                if (final) {
+                    $('vn-input').value = final;
+                    sendChatMessage();
+                }
+            };
+
+            recognition.onerror = (event) => {
+                if (event.error === 'not-allowed') {
+                    addConsoleLog('麦克风权限被拒绝。请在浏览器设置中允许麦克风');
+                } else if (event.error === 'no-speech') {
+                    addConsoleLog('未检测到语音，请再试一次');
+                } else if (event.error !== 'aborted') {
+                    addConsoleLog(`语音识别错误: ${event.error}`);
+                }
+                stopRecording();
+            };
+
+            recognition.onend = () => {
+                stopRecording();
+            };
+
+            try {
+                recognition.start();
+            } catch (e) {
+                addConsoleLog(`启动语音识别失败: ${e.message}`);
+                stopRecording();
+            }
+        });
+
+        function stopRecording() {
+            isRecording = false;
+            const btn = $('vn-mic');
+            btn.classList.remove('recording');
+            btn.innerHTML = '<i class="fas fa-microphone"></i>';
+            $('vn-input').placeholder = '和 Robo 说点什么吧...';
+        }
+
+        // ==========================================
+        // 麦克风设备选择
+        // ==========================================
+        let micStream = null;
+        let selectedMicId = '';
+
+        async function loadMicDevices() {
+            try {
+                // Need to request permission first to get device labels
+                const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                tempStream.getTracks().forEach(t => t.stop());
+            } catch(e) {
+                // User denied or no mic
+            }
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const mics = devices.filter(d => d.kind === 'audioinput');
+                const sel = $('mic-select');
+                // Keep default option, append found mics
+                sel.innerHTML = '<option value="">默认麦克风</option>';
+                mics.forEach((mic, i) => {
+                    const label = mic.label || `麦克风 ${i+1}`;
+                    const shortLabel = label.length > 24 ? label.slice(0,22)+'...' : label;
+                    sel.innerHTML += `<option value="${mic.deviceId}">${shortLabel}</option>`;
+                });
+                if (mics.length === 0) {
+                    sel.innerHTML += '<option disabled>未检测到麦克风</option>';
+                }
+            } catch(e) {
+                addConsoleLog(`麦克风列表加载失败: ${e.message}`);
+            }
+        }
+
+        $('mic-select').addEventListener('change', async function() {
+            selectedMicId = this.value;
+            // Release old stream
+            if (micStream) {
+                micStream.getTracks().forEach(t => t.stop());
+                micStream = null;
+            }
+            if (selectedMicId) {
+                try {
+                    micStream = await navigator.mediaDevices.getUserMedia({
+                        audio: { deviceId: { exact: selectedMicId } }
+                    });
+                    addConsoleLog(`已切换到: ${this.selectedOptions[0].text}`);
+                } catch(e) {
+                    addConsoleLog(`麦克风切换失败: ${e.message}`);
+                }
+            }
+        });
+
+        // Request microphone permission only when the visitor chooses voice input.
+
+        $('vn-send').addEventListener('click', sendChatMessage);
+        $('vn-clear').addEventListener('click', async () => {
+            if (chatInFlight) return;
+            if (_demoRunning) stopDemo();
+            stopTTS();
+            try {
+                if (publicMode && !IS_FILE_PREVIEW) await apiFetch('/chat/reset', {method: 'POST'});
+                $('vn-dialog').textContent = '';
+            } catch (e) { appendDialog(`清空失败：${e.message}`, false, true); }
+        });
+        $('vn-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) {
+                e.preventDefault();
+                sendChatMessage();
+            }
+        });
+
+        window.addEventListener('beforeunload', () => {
+            if (avatarObjectUrl) URL.revokeObjectURL(avatarObjectUrl);
+            if (bgObjectUrl) URL.revokeObjectURL(bgObjectUrl);
+            if (socketHeartbeatTimer) clearInterval(socketHeartbeatTimer);
+            if (socketReconnectTimer) clearTimeout(socketReconnectTimer);
+            if (preloadTimer) clearInterval(preloadTimer);
+            if (preloadDeadlineTimer) clearTimeout(preloadDeadlineTimer);
+            if (rafMotionId) cancelAnimationFrame(rafMotionId);
+            if (rafCursorId) cancelAnimationFrame(rafCursorId);
+            if (_demoTimer) clearTimeout(_demoTimer);
+            if (_l2dResizeObserver) _l2dResizeObserver.disconnect();
+            if (micStream) micStream.getTracks().forEach(track => track.stop());
+            stopTTS();
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            isTabVisible = !document.hidden;
+            if (_l2dApp) {
+                if (isTabVisible && !avatarIsCustom) _l2dApp.start();
+                else _l2dApp.stop();
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                initGallery();
+                const mobile = window.matchMedia('(max-width: 900px)').matches;
+                if (currentPage === 1) gsap.set('#hero-frame', {
+                    left: mobile ? '50%' : '100%', top: mobile ? '12%' : '0%',
+                    xPercent: mobile ? -50 : -100, yPercent: 0,
+                    width: mobile ? '56vw' : '45vw', height: mobile ? '30vh' : '100vh'
+                });
+                else gsap.set('#hero-frame', {width: mobile ? 260 : 340, height: mobile ? 380 : 480});
+            }, 220);
+        }, { passive: true });
+
+        // ==========================================
+        // 启动引导
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', async () => {
+            startPreloader();
+
+            splitTextToSpans();
+            initGallery();
+            const loadPrivateSettings = initSettings();
+            initDragAndDrop(); 
+            bindCursorEvents();
+            if (!window.matchMedia('(max-width: 900px)').matches && !prefersReducedMotion.matches) renderCursor();
+            startMotionLoop();
+            gsap.set('.page', { opacity: 0 });
+            gsap.set('#page-0', { opacity: 1 });
+            
+            applySavedVisuals().then(initLive2D);
+            connectWebSocket();
+
+            if (IS_FILE_PREVIEW) {
+                $('connection-status').textContent = '文件预览 · 请运行 run_web.bat 开启聊天';
+                return;
+            }
+            try {
+                const config = await apiFetch('/config');
+                publicMode = config.public_mode;
+                $('connection-status').textContent = config.chat_configured ? '已连接 · 可以开始聊天' : '演示可用 · 在线聊天待配置';
+                document.body.classList.toggle('public-mode', publicMode);
+                loadPrivateSettings();
+            } catch (e) {
+                $('connection-status').textContent = '服务暂时未连接，请稍后刷新';
+            }
+        });
+    </script>
+</body>
+</html>

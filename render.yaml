@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: luyao-robo
+    runtime: docker
+    region: singapore
+    healthCheckPath: /health
+    envVars:
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: LINGSHU_PUBLIC_MODE
+        value: "1"
+      - key: LINGSHU_HOST
+        value: "0.0.0.0"
+      - key: TZ
+        value: Asia/Shanghai
+      - key: FORWARDED_ALLOW_IPS
+        value: "*"
