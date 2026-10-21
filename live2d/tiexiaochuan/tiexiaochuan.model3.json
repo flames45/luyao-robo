@@ -1,0 +1,125 @@
+{
+  "Version": 3,
+  "ConfVer": 0,
+  "Type": 0,
+  "FileReferences": {
+    "Moc": "tiexiaochuan.moc3",
+    "Textures": [
+      "tiexiaochuan.4096/texture_00.png"
+    ],
+    "PhysicsV2": {},
+    "Motions": {
+      "摇头": [
+        {
+          "Name": "摇头",
+          "File": "motions/摇头.motion3.json"
+        }
+      ],
+      "思考": [
+        {
+          "Name": "思考",
+          "File": "motions/思考.motion3.json"
+        }
+      ],
+      "招手": [
+        {
+          "Name": "招手",
+          "File": "motions/打招呼.motion3.json"
+        }
+      ],
+      "Start": [
+        {
+          "Name": "打招呼",
+          "File": "motions/打招呼.motion3.json",
+          "Text": "您好，我是铁小川",
+          "TextDuration": 1000
+        }
+      ]
+    },
+    "DisplayInfo": "tiexiaochuan.cdi3.json"
+  },
+  "Controllers": {
+    "ParamHit": {},
+    "ParamLoop": {},
+    "KeyTrigger": {
+      "Items": [
+        {
+          "Input": 49,
+          "DownMtn": "思考:思考"
+        },
+        {
+          "Input": 50,
+          "DownMtn": "招手:招手"
+        }
+      ],
+      "Enabled": true
+    },
+    "ParamTrigger": {},
+    "AreaTrigger": {
+      "Enabled": true
+    },
+    "HandTrigger": {},
+    "EyeBlink": {
+      "MinInterval": 500,
+      "MaxInterval": 6000,
+      "Items": [
+        {
+          "Id": "ParamEyeLOpen",
+          "Min": 0.0,
+          "Max": 1.0,
+          "BlendMode": 2,
+          "Input": 0
+        },
+        {
+          "Id": "ParamEyeROpen",
+          "Min": 0.0,
+          "Max": 1.0,
+          "BlendMode": 2,
+          "Input": 0
+        }
+      ],
+      "Enabled": true
+    },
+    "LipSync": {
+      "Gain": 5.0
+    },
+    "MouseTracking": {
+      "SmoothTime": 0.15,
+      "Enabled": true
+    },
+    "AutoBreath": {
+      "Enabled": true
+    },
+    "ExtraMotion": {
+      "Enabled": true
+    },
+    "Accelerometer": {
+      "Enabled": true
+    },
+    "Microphone": {},
+    "Transform": {},
+    "FaceTracking": {
+      "Enabled": true
+    },
+    "HandTracking": {},
+    "ParamValue": {},
+    "PartOpacity": {},
+    "ArtmeshOpacity": {},
+    "ArtmeshColor": {},
+    "ArtmeshCulling": {
+      "DefaultMode": 0
+    },
+    "IntimacySystem": {},
+    "Battery": {}
+  },
+  "HitAreas": [
+    {
+      "Name": "摇头",
+      "Id": "ArtMesh22",
+      "DownMtn": "摇头"
+    }
+  ],
+  "Options": {
+    "TexType": 0
+  }
+}
